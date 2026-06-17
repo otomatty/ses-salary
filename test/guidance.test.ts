@@ -5,7 +5,11 @@ import {
   CONSULT_THRESHOLD,
   FIXED_AMOUNT,
   FIXED_UPPER,
+  CONSULT_DELTA_BLOCKED,
   guidanceForStatus,
+  guidanceNote,
+  formatConsultFormula,
+  formatFixedFormula,
   SALARY_CONTACT,
 } from "../src/shared/guidance";
 import { calcSalary, type PricePoint } from "../src/shared/calc";
@@ -19,6 +23,12 @@ describe("guidance thresholds", () => {
     expect(CONSULT_THRESHOLD).toBe(1_400_000);
     expect(FIXED_AMOUNT).toBe(235_000);
     expect(FIXED_UPPER).toBe(400_000);
+  });
+
+  it("案内文にしきい値が含まれる", () => {
+    expect(CONSULT_GUIDANCE.reason).toContain("1,400,000");
+    expect(FIXED_GUIDANCE.reason).toContain("400,000");
+    expect(FIXED_GUIDANCE.reason).toContain("235,000");
   });
 });
 
@@ -43,18 +53,53 @@ describe("guidanceForStatus", () => {
   });
 });
 
-describe("calcSalary note は guidance と一致する", () => {
-  it("要相談の note は理由＋次の行動", () => {
-    const r = calcSalary(months(1_400_000, 1_400_000, 1_400_000), 1);
-    expect(r.status).toBe("consult");
-    expect(r.note).toBe(
+describe("guidanceNote", () => {
+  it("consult/fixed のみ非 null を返す", () => {
+    expect(guidanceNote("consult")).toBe(
       `${CONSULT_GUIDANCE.reason} ${CONSULT_GUIDANCE.nextAction}`,
     );
+    expect(guidanceNote("fixed")).toBe(
+      `${FIXED_GUIDANCE.reason} ${FIXED_GUIDANCE.nextAction}`,
+    );
+    expect(guidanceNote("ok")).toBeNull();
+  });
+});
+
+describe("formatFormula", () => {
+  it("早見表のしきい値を計算式に反映する", () => {
+    expect(formatConsultFormula(1_500_000)).toContain("1,400,000");
+    expect(formatConsultFormula(1_500_000)).toContain(CONSULT_GUIDANCE.badge);
+    expect(formatFixedFormula(300_000, 235_000)).toContain("400,000");
+    expect(formatFixedFormula(300_000, 235_000)).toContain("235,000");
+  });
+});
+
+describe("CONSULT_DELTA_BLOCKED", () => {
+  it("要相談バッジを含む", () => {
+    expect(CONSULT_DELTA_BLOCKED).toContain(CONSULT_GUIDANCE.badge);
+  });
+});
+
+describe("calcSalary note は guidance と一致する", () => {
+  it("要相談の note は guidanceNote と一致", () => {
+    const r = calcSalary(months(1_400_000, 1_400_000, 1_400_000), 1);
+    expect(r.status).toBe("consult");
+    expect(r.note).toBe(guidanceNote("consult"));
   });
 
-  it("固定額の note は理由＋次の行動", () => {
+  it("固定額の note は guidanceNote と一致", () => {
     const r = calcSalary(months(300_000, 300_000, 300_000), 2);
     expect(r.status).toBe("fixed");
-    expect(r.note).toBe(`${FIXED_GUIDANCE.reason} ${FIXED_GUIDANCE.nextAction}`);
+    expect(r.note).toBe(guidanceNote("fixed"));
+  });
+
+  it("計算式は formatFormula と一致", () => {
+    const consult = calcSalary(months(1_400_000, 1_400_000, 1_400_000), 1);
+    expect(consult.formula).toBe(formatConsultFormula(consult.avgUnitPrice));
+
+    const fixed = calcSalary(months(300_000, 300_000, 300_000), 2);
+    expect(fixed.formula).toBe(
+      formatFixedFormula(fixed.avgUnitPrice, fixed.salary!),
+    );
   });
 });

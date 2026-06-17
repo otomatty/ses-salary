@@ -1,6 +1,23 @@
 import type { SalaryStatus } from "@shared/calc";
 import { guidanceForStatus } from "@shared/guidance";
 
+const TONE = {
+  consult: {
+    wrap: "border-amber-200 bg-amber-50",
+    heading: "text-amber-800",
+    body: "text-amber-700",
+    actionWrap: "border-amber-200 bg-white/70",
+    actionText: "text-amber-800",
+  },
+  fixed: {
+    wrap: "border-indigo-200 bg-indigo-50",
+    heading: "text-indigo-800",
+    body: "text-indigo-700",
+    actionWrap: "border-indigo-200 bg-white/70",
+    actionText: "text-indigo-800",
+  },
+} as const;
+
 /**
  * 要相談・固定額など、自動計算が通常どおり働かないケースの案内パネル（PRD §12.4）。
  *
@@ -15,26 +32,12 @@ export function StatusGuidance({
   status: SalaryStatus;
   compact?: boolean;
 }) {
+  if (status === "ok") return null;
+
   const g = guidanceForStatus(status);
   if (!g) return null;
 
-  // consult は注意喚起寄り（amber）、fixed は中立的な案内（indigo）。
-  const tone =
-    status === "consult"
-      ? {
-          wrap: "border-amber-200 bg-amber-50",
-          heading: "text-amber-800",
-          body: "text-amber-700",
-          actionWrap: "border-amber-200 bg-white/70",
-          actionText: "text-amber-800",
-        }
-      : {
-          wrap: "border-indigo-200 bg-indigo-50",
-          heading: "text-indigo-800",
-          body: "text-indigo-700",
-          actionWrap: "border-indigo-200 bg-white/70",
-          actionText: "text-indigo-800",
-        };
+  const tone = TONE[status];
 
   return (
     <div

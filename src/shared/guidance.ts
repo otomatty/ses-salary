@@ -13,7 +13,10 @@
  * 早見表を改定すれば案内文言も自動的に追随する。
  */
 
-import { RATE_BANDS } from "./rateTable";
+import { RATE_BANDS, type BandKind, type RateBand } from "./rateTable";
+
+/** calc と UI で共有する給与計算結果の区分 */
+export type GuidanceStatus = "ok" | "fixed" | "consult";
 
 /**
  * 給与の個別相談・問い合わせ窓口。
@@ -40,15 +43,28 @@ export interface SalaryGuidance {
   nextAction: string;
 }
 
-const consultBand = RATE_BANDS.find((b) => b.kind === "consult");
-const fixedBand = RATE_BANDS.find((b) => b.kind === "fixed");
+function requireBand(kind: BandKind): RateBand {
+  const band = RATE_BANDS.find((b) => b.kind === kind);
+  if (!band) {
+    throw new Error(`RATE_BANDS に kind="${kind}" の帯が定義されていません`);
+  }
+  return band;
+}
+
+const consultBand = requireBand("consult");
+const fixedBand = requireBand("fixed");
+/** 還元率方式が始まる平均単価の下限（固定額帯の直上 = A-0 帯の min） */
+const rateFloorBand = RATE_BANDS.find((b) => b.code === "A-0");
 
 /** 要相談となる平均単価のしきい値（円, この値以上）。 */
-export const CONSULT_THRESHOLD = consultBand?.min ?? 1_400_000;
+export const CONSULT_THRESHOLD = consultBand.min;
 /** 固定額（円）。 */
-export const FIXED_AMOUNT = fixedBand?.fixedAmount ?? 0;
+export const FIXED_AMOUNT = fixedBand.fixedAmount ?? 0;
 /** 固定額が適用される上限（円, この値未満で固定額）。 */
-export const FIXED_UPPER = (fixedBand?.max ?? -1) + 1;
+export const FIXED_UPPER = rateFloorBand?.min ?? 400_000;
+
+/** 推移グラフの要相談マーカー系列名。 */
+export const CONSULT_CHART_SERIES = "要相談（自動計算外）";
 
 function yen(value: number): string {
   return value.toLocaleString("ja-JP");
@@ -82,11 +98,43 @@ export const FIXED_GUIDANCE: SalaryGuidance = {
   )} 円以上になると、還元率方式での自動計算に切り替わります。`,
 };
 
+/** 要相談が絡む比較で差額を出せないときの案内。 */
+export const CONSULT_DELTA_BLOCKED = `${CONSULT_GUIDANCE.badge}を含むため差額は計算できません。`;
+
 /** status から対応する案内を引く（該当しなければ null）。 */
 export function guidanceForStatus(
-  status: "ok" | "fixed" | "consult",
+  status: GuidanceStatus,
 ): SalaryGuidance | null {
-  if (status === "consult") return CONSULT_GUIDANCE;
-  if (status === "fixed") return FIXED_GUIDANCE;
-  return null;
+  switch (status) {
+    case "consult":
+      return CONSULT_GUIDANCE;
+    case "fixed":
+      return FIXED_GUIDANCE;
+    case "ok":
+      return null;
+    default: {
+      const _exhaustive: never = status;
+      return _exhaustive;
+    }
+  }
+}
+
+/** フラットな note 文字列（API・テスト用）。consult/fixed のみ非 null。 */
+export function guidanceNote(status: GuidanceStatus): string | null {
+  const g = guidanceForStatus(status);
+  return g ? `${g.reason} ${g.nextAction}` : null;
+}
+
+/** 要相談時の検算用計算式テキスト。 */
+export function formatConsultFormula(avgUnitPrice: number): string {
+  return `平均単価 ${yen(avgUnitPrice)} 円 ≧ ${yen(
+    CONSULT_THRESHOLD,
+  )} 円 → ${CONSULT_GUIDANCE.badge}`;
+}
+
+/** 固定額時の検算用計算式テキスト。 */
+export function formatFixedFormula(avgUnitPrice: number, salary: number): string {
+  return `平均単価 ${yen(avgUnitPrice)} 円 < ${yen(
+    FIXED_UPPER,
+  )} 円 → 一律 ${yen(salary)} 円`;
 }

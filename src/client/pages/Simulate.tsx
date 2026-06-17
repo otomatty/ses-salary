@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { DashboardResponse } from "@shared/types";
 import type { PricePoint } from "@shared/calc";
 import { formatYen } from "@shared/calc";
+import { CONSULT_DELTA_BLOCKED } from "@shared/guidance";
 import { addMonths, currentYearMonth, precedingMonths } from "@shared/periods";
 import {
   buildSimulation,
@@ -11,6 +12,7 @@ import {
 import type { Rank } from "@shared/rateTable";
 import { Badge, Card, SectionTitle } from "../components/ui";
 import { SalaryBreakdownCard } from "../components/SalaryBreakdownCard";
+import { StatusGuidance } from "../components/StatusGuidance";
 import { navigate } from "../router";
 
 type Mode = "recent2" | "all3";
@@ -295,11 +297,12 @@ function DiffCard({
       {/* 給与差額 */}
       <div className="mb-4">
         {diff.salaryDelta === null ? (
-          <p className="text-sm text-amber-700">
-            {b.salary === null || sim.salary === null
-              ? "要相談を含むため差額は計算できません。"
-              : ""}
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-amber-700">{CONSULT_DELTA_BLOCKED}</p>
+            {(b.status === "consult" || sim.status === "consult") && (
+              <StatusGuidance status="consult" compact />
+            )}
+          </div>
         ) : (
           <div>
             <p
