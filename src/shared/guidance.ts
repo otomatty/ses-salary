@@ -56,12 +56,21 @@ const fixedBand = requireBand("fixed");
 /** 還元率方式が始まる平均単価の下限（固定額帯の直上 = A-0 帯の min） */
 const rateFloorBand = RATE_BANDS.find((b) => b.code === "A-0");
 
+// 早見表マスタの欠落は案内文の不整合を招くため、フォールバックで隠さず
+// 起動時（モジュール読み込み時）に fail-fast で検知する。
+if (!rateFloorBand) {
+  throw new Error('RATE_BANDS に code="A-0" の帯が定義されていません');
+}
+if (fixedBand.fixedAmount == null) {
+  throw new Error("RATE_BANDS の fixed 帯に fixedAmount が設定されていません");
+}
+
 /** 要相談となる平均単価のしきい値（円, この値以上）。 */
 export const CONSULT_THRESHOLD = consultBand.min;
 /** 固定額（円）。 */
-export const FIXED_AMOUNT = fixedBand.fixedAmount ?? 0;
+export const FIXED_AMOUNT = fixedBand.fixedAmount;
 /** 固定額が適用される上限（円, この値未満で固定額）。 */
-export const FIXED_UPPER = rateFloorBand?.min ?? 400_000;
+export const FIXED_UPPER = rateFloorBand.min;
 
 /** 推移グラフの要相談マーカー系列名。 */
 export const CONSULT_CHART_SERIES = "要相談（自動計算外）";
