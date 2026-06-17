@@ -31,7 +31,7 @@ export function Home({
         <NoticeBanner>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-medium">評価ランク未設定（暫定ランク2で計算中）</p>
+              <p className="font-medium">評価ランク未設定（暫定ランク1で計算中）</p>
               <p className="mt-0.5 text-xs text-amber-700">
                 人事評価で決まる評価ランクがまだ設定されていません。正確な給与計算のため、設定画面でランクを登録してください。
               </p>
@@ -58,7 +58,7 @@ export function Home({
         <SummaryCard
           label="今期の給与"
           result={dashboard.current}
-          emptyText="今期に適用される給与を計算するには、直近3ヶ月の単価が必要です。"
+          emptyText="今期に適用される給与を計算するには、前四半期（3ヶ月）の単価が必要です。"
         />
         <SummaryCard
           label="来期の給与（予測）"
@@ -146,7 +146,7 @@ function SummaryCard({
           {result.rankProvisional &&
             result.breakdown.band.kind === "rank" && (
               <p className="mt-1 text-xs font-medium text-amber-600">
-                暫定ランク2で計算中
+                暫定ランク1で計算中
               </p>
             )}
           {guidance && (

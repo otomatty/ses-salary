@@ -52,7 +52,7 @@ export function Settings({
     <div className="space-y-6">
       {dashboard.rankProvisional && (
         <NoticeBanner>
-          評価ランクが未設定のため、暫定的にランク2で給与を計算しています。下記でランクを設定すると、暫定表示は消えます。
+          評価ランクが未設定のため、暫定的にランク1で給与を計算しています。下記でランクを設定すると、暫定表示は消えます。
         </NoticeBanner>
       )}
 

@@ -3,7 +3,7 @@ import { calcSalary, type PricePoint } from "../src/shared/calc";
 import {
   buildNextPeriodSnapshot,
   toSnapshot,
-  computeSalaryForAppliedMonth,
+  computeSalaryForQuarter,
   type RankHistoryEntry,
 } from "../src/shared/periods";
 
@@ -13,7 +13,7 @@ function pp(yearMonth: string, unitPrice: number): PricePoint {
 
 describe("toSnapshot", () => {
   it("通常計算の内訳を永続化フィールドへ写す", () => {
-    const result = computeSalaryForAppliedMonth(
+    const result = computeSalaryForQuarter(
       "2026-04",
       new Map([
         ["2026-01", 1_000_000],
@@ -27,16 +27,16 @@ describe("toSnapshot", () => {
       appliedFrom: "2026-04",
       avgUnitPrice: 1_000_000,
       appliedBand: "I",
-      appliedRank: 2, // 履歴なし → fallback 2
-      appliedRate: 55.89,
-      salary: 558_900,
+      appliedRank: 1, // 履歴なし → fallback 1
+      appliedRate: 54.52,
+      salary: 545_200,
       status: "ok",
     });
   });
 
   it("要相談は率・給与を null、status を consult にする", () => {
     const snap = toSnapshot(
-      computeSalaryForAppliedMonth(
+      computeSalaryForQuarter(
         "2026-04",
         new Map([
           ["2026-01", 1_400_000],
@@ -54,7 +54,7 @@ describe("toSnapshot", () => {
 
   it("固定額は率を null、給与を固定額にする", () => {
     const snap = toSnapshot(
-      computeSalaryForAppliedMonth(
+      computeSalaryForQuarter(
         "2026-04",
         new Map([
           ["2026-01", 300_000],
@@ -76,13 +76,13 @@ describe("buildNextPeriodSnapshot", () => {
     expect(buildNextPeriodSnapshot([], [])).toBeNull();
   });
 
-  it("直前3ヶ月が揃わなければ null", () => {
+  it("直前四半期の3ヶ月が揃わなければ null", () => {
     expect(
       buildNextPeriodSnapshot([pp("2026-01", 1_000_000)], []),
     ).toBeNull();
   });
 
-  it("最新単価の翌月を適用月とし、calcSalary と一致する確定値を返す", () => {
+  it("最新単価の属する四半期の次を適用四半期とし、calcSalary と一致する確定値を返す", () => {
     const prices = [
       pp("2026-01", 1_000_000),
       pp("2026-02", 1_000_000),
@@ -90,11 +90,12 @@ describe("buildNextPeriodSnapshot", () => {
     ];
     const snap = buildNextPeriodSnapshot(prices, []);
     expect(snap?.appliedFrom).toBe("2026-04");
-    expect(snap?.salary).toBe(calcSalary(prices, 2).salary);
-    expect(snap?.salary).toBe(558_900);
+    // 暫定ランク1
+    expect(snap?.salary).toBe(calcSalary(prices, 1).salary);
+    expect(snap?.salary).toBe(545_200);
   });
 
-  it("入力順に依存せず最新月から適用月を決める", () => {
+  it("入力順に依存せず最新月の四半期から適用四半期を決める", () => {
     const snap = buildNextPeriodSnapshot(
       [pp("2026-03", 500_000), pp("2026-01", 500_000), pp("2026-02", 500_000)],
       [],

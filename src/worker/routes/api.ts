@@ -13,9 +13,11 @@ import { isValidYearMonth } from "@shared/periods";
 import {
   buildSalaryHistory,
   buildNextPeriodSnapshot,
-  computeSalaryForAppliedMonth,
+  computeSalaryForQuarter,
   currentYearMonth,
-  addMonths,
+  quarterStartMonth,
+  nextQuarterStart,
+  quarterLabel,
   rankAt,
   isRankProvisional,
   type RankHistoryEntry,
@@ -129,9 +131,9 @@ async function loadSavedResults(
 }
 
 /**
- * 来期（最新単価の翌月適用）の確定スナップショットを `salary_results` に upsert する。
+ * 来期（最新単価が属する四半期の次四半期適用）の確定スナップショットを `salary_results` に upsert する。
  * 単価/ランクの保存後に呼び、同一 applied_from は最新値で更新する（PRD §9）。
- * 算出に必要な直前3ヶ月が揃っていない場合は何もしない。
+ * 算出に必要な直前四半期（3ヶ月）が揃っていない場合は何もしない。
  */
 async function snapshotNextPeriod(env: Env, userId: string): Promise<void> {
   const { priceDTOs, rankDTOs } = await loadUserData(env, userId);
@@ -213,24 +215,26 @@ apiApp.get("/api/dashboard", async (c) => {
   }));
 
   const thisMonth = currentYearMonth();
+  const currentQuarter = quarterStartMonth(thisMonth);
   const currentRank = rankAt(rankHistory, thisMonth);
   const rankProvisional = isRankProvisional(rankHistory, thisMonth);
 
-  // 今期: 現在の月に適用される給与（直前3ヶ月）
-  const current = computeSalaryForAppliedMonth(thisMonth, priceMap, rankHistory);
+  // 今期: 現在の四半期に適用される給与（直前四半期の平均単価が基準）
+  const current = computeSalaryForQuarter(currentQuarter, priceMap, rankHistory);
 
-  // 来期: 最新データの翌月から適用される給与
+  // 来期: 次の四半期に適用される給与（今四半期の平均単価が基準）
+  const nextQuarter = nextQuarterStart(currentQuarter);
   let next = null;
   let nextPending: string | null = null;
   if (priceDTOs.length === 0) {
-    nextPending = "月単価がまだ登録されていません。まずは直近3ヶ月の単価を入力してください。";
+    nextPending =
+      "月単価がまだ登録されていません。まずは1四半期（3ヶ月）分の単価を入力してください。";
   } else {
-    const latest = priceDTOs[priceDTOs.length - 1].yearMonth;
-    const appliedFrom = addMonths(latest, 1);
-    next = computeSalaryForAppliedMonth(appliedFrom, priceMap, rankHistory);
+    next = computeSalaryForQuarter(nextQuarter, priceMap, rankHistory);
     if (!next) {
-      nextPending =
-        "来期の予測には直近3ヶ月分の月単価が必要です。連続した3ヶ月分を入力してください。";
+      nextPending = `来期（${quarterLabel(nextQuarter)}）の予測には、今四半期（${quarterLabel(
+        currentQuarter,
+      )}）の月単価3ヶ月分が必要です。`;
     }
   }
 

@@ -1,6 +1,10 @@
 /**
  * 年月（"YYYY-MM"）の計算と、月単価・評価ランク履歴から
  * 各期の給与を組み立てるためのヘルパー。
+ *
+ * 給与は「四半期（1〜3 / 4〜6 / 7〜9 / 10〜12月）」単位で決まる。
+ * ある四半期の平均単価が、その**次の四半期**の給与の基準になる。
+ * 例: 4〜6月の平均単価 → 7〜9月の給与。
  */
 
 import {
@@ -58,6 +62,38 @@ export function compareYM(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/**
+ * 指定の年月が属する四半期の開始月（"YYYY-MM"）を返す。
+ * Q1=1月, Q2=4月, Q3=7月, Q4=10月。
+ */
+export function quarterStartMonth(ym: string): string {
+  const { year, month } = parseYM(ym);
+  const startMonth = Math.floor((month - 1) / 3) * 3 + 1;
+  return formatYM(year, startMonth);
+}
+
+/** 四半期の開始月から、その四半期に含まれる3ヶ月を古い順で返す。 */
+export function quarterMonths(quarterStart: string): string[] {
+  const start = quarterStartMonth(quarterStart);
+  return [start, addMonths(start, 1), addMonths(start, 2)];
+}
+
+/** 直前の四半期の開始月を返す。 */
+export function prevQuarterStart(quarterStart: string): string {
+  return quarterStartMonth(addMonths(quarterStartMonth(quarterStart), -3));
+}
+
+/** 次の四半期の開始月を返す。 */
+export function nextQuarterStart(quarterStart: string): string {
+  return quarterStartMonth(addMonths(quarterStartMonth(quarterStart), 3));
+}
+
+/** 四半期の表示ラベル（例: "2026-07 〜 2026-09"）。 */
+export function quarterLabel(quarterStart: string): string {
+  const start = quarterStartMonth(quarterStart);
+  return `${start} 〜 ${addMonths(start, 2)}`;
+}
+
 /** 今日（システム日付）の "YYYY-MM" */
 export function currentYearMonth(now: Date = new Date()): string {
   return formatYM(now.getFullYear(), now.getMonth() + 1);
@@ -70,7 +106,7 @@ export function currentYearMonth(now: Date = new Date()): string {
 export function rankAt(
   history: RankHistoryEntry[],
   ym: string,
-  fallback: Rank = 2,
+  fallback: Rank = 1,
 ): Rank {
   const applicable = history
     .filter((h) => compareYM(h.effectiveFrom, ym) <= 0)
@@ -92,9 +128,9 @@ export function isRankProvisional(
 }
 
 export interface SalaryResult {
-  /** この給与が適用される最初の月 "YYYY-MM" */
+  /** この給与が適用される四半期の最初の月 "YYYY-MM"（例: 7〜9月期なら "2026-07"） */
   appliedFrom: string;
-  /** 適用期間の表示（例: "2026-04 〜 2026-06"） */
+  /** 適用四半期の表示（例: "2026-07 〜 2026-09"） */
   periodLabel: string;
   breakdown: SalaryBreakdown;
   /**
@@ -106,29 +142,31 @@ export interface SalaryResult {
 }
 
 /**
- * 「appliedFrom 月から適用される給与」を、その直前3ヶ月の単価から計算する。
- * 直前3ヶ月の単価が揃っていない場合は null を返す。
+ * 「指定四半期に適用される給与」を、その**直前の四半期**の平均単価から計算する。
+ * @param quarterStart 適用四半期の開始月（"YYYY-MM"。四半期内の任意の月でも開始月に正規化する）
+ * 直前四半期の3ヶ月の単価が揃っていない場合は null を返す。
  */
-export function computeSalaryForAppliedMonth(
-  appliedFrom: string,
+export function computeSalaryForQuarter(
+  quarterStart: string,
   priceMap: Map<string, number>,
   rankHistory: RankHistoryEntry[],
-  rankFallback: Rank = 2,
+  rankFallback: Rank = 1,
 ): SalaryResult | null {
-  const sourceMonths = precedingMonths(appliedFrom, 3);
+  const targetStart = quarterStartMonth(quarterStart);
+  const sourceMonths = quarterMonths(prevQuarterStart(targetStart));
   const points: PricePoint[] = [];
   for (const ym of sourceMonths) {
     const price = priceMap.get(ym);
-    if (price === undefined) return null; // 3ヶ月揃っていない
+    if (price === undefined) return null; // 直前四半期の3ヶ月が揃っていない
     points.push({ yearMonth: ym, unitPrice: price });
   }
-  const rank = rankAt(rankHistory, appliedFrom, rankFallback);
+  const rank = rankAt(rankHistory, targetStart, rankFallback);
   const breakdown = calcSalary(points, rank);
   return {
-    appliedFrom,
-    periodLabel: `${appliedFrom} 〜 ${addMonths(appliedFrom, 2)}`,
+    appliedFrom: targetStart,
+    periodLabel: quarterLabel(targetStart),
     breakdown,
-    rankProvisional: isRankProvisional(rankHistory, appliedFrom),
+    rankProvisional: isRankProvisional(rankHistory, targetStart),
   };
 }
 
@@ -167,24 +205,25 @@ export function toSnapshot(result: SalaryResult): SalarySnapshot {
 }
 
 /**
- * 来期（最新の月単価の翌月から適用）の確定スナップショットを組み立てる。
- * 月単価が未登録、または直前3ヶ月が揃わず算出できない場合は null。
+ * 来期（最新単価が属する四半期の、次の四半期から適用）の確定スナップショットを組み立てる。
+ * 月単価が未登録、または直前四半期の3ヶ月が揃わず算出できない場合は null。
  * 単価/ランク保存時の永続化に使う。
  */
 export function buildNextPeriodSnapshot(
   prices: PricePoint[],
   rankHistory: RankHistoryEntry[],
-  rankFallback: Rank = 2,
+  rankFallback: Rank = 1,
 ): SalarySnapshot | null {
   if (prices.length === 0) return null;
   const sorted = [...prices].sort((a, b) =>
     compareYM(a.yearMonth, b.yearMonth),
   );
   const latest = sorted[sorted.length - 1].yearMonth;
-  const appliedFrom = addMonths(latest, 1);
+  // 最新単価が属する四半期の平均が、その次の四半期の給与になる。
+  const targetQuarter = nextQuarterStart(quarterStartMonth(latest));
   const priceMap = new Map(prices.map((p) => [p.yearMonth, p.unitPrice]));
-  const result = computeSalaryForAppliedMonth(
-    appliedFrom,
+  const result = computeSalaryForQuarter(
+    targetQuarter,
     priceMap,
     rankHistory,
     rankFallback,
@@ -195,13 +234,13 @@ export function buildNextPeriodSnapshot(
 
 /**
  * 給与の推移（履歴）を作る。
- * データのある全期間にわたり、直前3ヶ月が揃う各月について給与を計算して返す。
+ * データのある全期間にわたり、直前四半期が揃う各四半期について給与を計算して返す。
  * グラフ・一覧表示に使う（古い順）。
  */
 export function buildSalaryHistory(
   prices: PricePoint[],
   rankHistory: RankHistoryEntry[],
-  rankFallback: Rank = 2,
+  rankFallback: Rank = 1,
 ): SalaryResult[] {
   if (prices.length < 3) return [];
   const priceMap = new Map(prices.map((p) => [p.yearMonth, p.unitPrice]));
@@ -209,22 +248,22 @@ export function buildSalaryHistory(
   const first = sorted[0].yearMonth;
   const last = sorted[sorted.length - 1].yearMonth;
 
-  // 給与が適用され得る最初の月は、最古データの3ヶ月後。
-  // 最後は「最新データの翌月（来期）」まで。
-  const start = addMonths(first, 3);
-  const end = addMonths(last, 1);
+  // 給与が適用され得る最初の四半期は、最古データの四半期の次。
+  // 最後は「最新データの四半期の次（来期）」まで。
+  const start = nextQuarterStart(quarterStartMonth(first));
+  const end = nextQuarterStart(quarterStartMonth(last));
 
   const results: SalaryResult[] = [];
   let cursor = start;
   while (compareYM(cursor, end) <= 0) {
-    const r = computeSalaryForAppliedMonth(
+    const r = computeSalaryForQuarter(
       cursor,
       priceMap,
       rankHistory,
       rankFallback,
     );
     if (r) results.push(r);
-    cursor = addMonths(cursor, 1);
+    cursor = nextQuarterStart(cursor);
   }
   return results;
 }

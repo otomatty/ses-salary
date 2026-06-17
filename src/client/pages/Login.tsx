@@ -28,7 +28,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: (u: ApiUser) => void }) {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-50 to-indigo-50 px-4">
       <Card className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <h1 className="text-xl font-bold text-slate-900">SES 給与計算</h1>
+          <h1 className="text-xl font-bold text-slate-900">エンジニア給与計算</h1>
           <p className="mt-1 text-sm text-slate-500">
             単価連動型の給与を計算・予測・可視化
           </p>

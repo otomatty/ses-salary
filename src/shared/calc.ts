@@ -65,7 +65,7 @@ export function averageUnitPrice(prices: number[]): number {
 }
 
 /**
- * 直近3ヶ月の単価と評価ランクから給与（総支給）を計算する。
+ * 対象期間（四半期=3ヶ月）の単価と評価ランクから給与（総支給）を計算する。
  *
  * @param months 対象3ヶ月（古い順でも新しい順でも可。表示用にそのまま保持する）
  * @param rank   適用する評価ランク（1/2/3）

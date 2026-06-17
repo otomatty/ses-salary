@@ -39,7 +39,7 @@ export function Layout({
             onClick={() => navigate("home")}
             className="text-base font-bold text-slate-900"
           >
-            SES 給与計算
+            エンジニア給与計算
           </button>
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-slate-500 sm:inline">
