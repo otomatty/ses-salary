@@ -16,13 +16,13 @@
     {
       "binding": "DB",
       "database_name": "ses-salary-db",
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_id": "ce2a631d-a0d5-4468-a4f1-59fc9ddbfb09",
       "migrations_dir": "migrations"
     }
   ],
   "vars": {
     "ALLOWED_EMAIL_DOMAIN": "",
-    "APP_URL": "http://localhost:5173",
-    "DEV_AUTH": "true"
+    "APP_URL": "https://ses-salary.a-sugai.workers.dev",
+    "DEV_AUTH": "false"
   }
 }
