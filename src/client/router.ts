@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 
 /** ごく軽量なハッシュルーター（依存ライブラリなし） */
-export type Route = "home" | "prices" | "detail" | "settings";
+export type Route = "home" | "prices" | "detail" | "simulate" | "settings";
 
-const VALID: Route[] = ["home", "prices", "detail", "settings"];
+const VALID: Route[] = ["home", "prices", "detail", "simulate", "settings"];
 
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#\/?/, "");

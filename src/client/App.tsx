@@ -8,6 +8,7 @@ import { Layout } from "./pages/Layout";
 import { Home } from "./pages/Home";
 import { Prices } from "./pages/Prices";
 import { Detail } from "./pages/Detail";
+import { Simulate } from "./pages/Simulate";
 import { Settings } from "./pages/Settings";
 
 export function App() {
@@ -52,6 +53,8 @@ export function App() {
         <Prices dashboard={dashboard} reload={reload} error={dashError} />
       ) : route === "detail" ? (
         <Detail dashboard={dashboard} />
+      ) : route === "simulate" ? (
+        <Simulate dashboard={dashboard} />
       ) : route === "settings" ? (
         <Settings dashboard={dashboard} reload={reload} />
       ) : (

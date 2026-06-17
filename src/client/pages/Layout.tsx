@@ -7,6 +7,7 @@ const NAV: { route: Route; label: string }[] = [
   { route: "home", label: "ホーム" },
   { route: "prices", label: "月単価" },
   { route: "detail", label: "計算根拠" },
+  { route: "simulate", label: "試算" },
   { route: "settings", label: "設定" },
 ];
 
