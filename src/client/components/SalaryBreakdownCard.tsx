@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import type { SalaryResult } from "@shared/periods";
 import { formatYen, formatRate } from "@shared/calc";
-import { Badge, Card } from "./ui";
+import { guidanceForStatus } from "@shared/guidance";
+import { Card } from "./ui";
+import { StatusBadge } from "./StatusBadge";
 import { StatusGuidance } from "./StatusGuidance";
 
 /**
@@ -16,14 +18,7 @@ export function SalaryBreakdownCard({
   result: SalaryResult;
 }) {
   const b = result.breakdown;
-  const statusBadge =
-    b.status === "consult" ? (
-      <Badge tone="amber">要相談</Badge>
-    ) : b.status === "fixed" ? (
-      <Badge tone="indigo">固定額</Badge>
-    ) : (
-      <Badge tone="green">通常計算</Badge>
-    );
+  const guidance = guidanceForStatus(b.status);
 
   return (
     <Card>
@@ -32,13 +27,15 @@ export function SalaryBreakdownCard({
           <p className="text-sm text-slate-500">{title}</p>
           <p className="text-xs text-slate-400">{result.periodLabel} 適用</p>
         </div>
-        {statusBadge}
+        <StatusBadge status={b.status} />
       </div>
 
       {/* 給与額（主役） */}
       <div className="mb-5">
         {b.salary === null ? (
-          <p className="text-3xl font-bold text-amber-600">要相談</p>
+          <p className="text-3xl font-bold text-amber-600">
+            {guidance?.badge ?? "—"}
+          </p>
         ) : (
           <p className="text-3xl font-bold text-slate-900">
             {formatYen(b.salary)}
@@ -79,9 +76,7 @@ export function SalaryBreakdownCard({
         </Row>
       </dl>
 
-      {/* 要相談・固定額は理由＋次の行動を案内（PRD §12.4）。
-          通常帯の補足（単一レート等）は従来どおり note を表示する。 */}
-      {b.status === "consult" || b.status === "fixed" ? (
+      {guidance ? (
         <div className="mt-4">
           <StatusGuidance status={b.status} />
         </div>

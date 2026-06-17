@@ -1,15 +1,16 @@
 import type { DashboardResponse } from "@shared/types";
 import { formatYen } from "@shared/calc";
+import { guidanceForStatus } from "@shared/guidance";
 import type { SalaryResult } from "@shared/periods";
 import {
   Card,
   SectionTitle,
-  Badge,
   Button,
   ErrorBanner,
   NoticeBanner,
 } from "../components/ui";
 import { TrendChart } from "../components/TrendChart";
+import { StatusBadge } from "../components/StatusBadge";
 import { StatusGuidance } from "../components/StatusGuidance";
 import { navigate } from "../router";
 
@@ -105,44 +106,42 @@ function SummaryCard({
   emptyText: string;
   highlight?: boolean;
 }) {
+  const guidance = result ? guidanceForStatus(result.breakdown.status) : null;
+
   return (
     <Card className={highlight ? "ring-2 ring-indigo-100" : ""}>
       <div className="mb-2 flex items-center justify-between">
         <SectionTitle>{label}</SectionTitle>
-        {result &&
-          (result.breakdown.status === "consult" ? (
-            <Badge tone="amber">要相談</Badge>
-          ) : result.breakdown.status === "fixed" ? (
-            <Badge tone="indigo">固定額</Badge>
-          ) : (
-            <Badge tone="green">{result.breakdown.band.code} 帯</Badge>
-          ))}
+        {result && (
+          <StatusBadge
+            status={result.breakdown.status}
+            bandCode={result.breakdown.band.code}
+          />
+        )}
       </div>
 
       {!result ? (
         <p className="text-sm text-slate-400">{emptyText}</p>
-      ) : result.breakdown.salary === null ? (
-        <div>
-          <p className="text-2xl font-bold text-amber-600">要相談</p>
-          <p className="mt-1 text-xs text-slate-400">{result.periodLabel} 適用</p>
-          <div className="mt-3">
-            <StatusGuidance status={result.breakdown.status} compact />
-          </div>
-          <div className="mt-3">
-            <Button variant="ghost" onClick={() => navigate("detail")}>
-              計算根拠を見る →
-            </Button>
-          </div>
-        </div>
       ) : (
         <div>
-          <p className="text-3xl font-bold text-slate-900">
-            {formatYen(result.breakdown.salary)}
-            <span className="ml-1 text-base font-normal text-slate-500">円</span>
-          </p>
+          {result.breakdown.salary === null ? (
+            <p className="text-2xl font-bold text-amber-600">
+              {guidance?.badge ?? "—"}
+            </p>
+          ) : (
+            <p className="text-3xl font-bold text-slate-900">
+              {formatYen(result.breakdown.salary)}
+              <span className="ml-1 text-base font-normal text-slate-500">円</span>
+            </p>
+          )}
           <p className="mt-1 text-xs text-slate-400">
-            {result.periodLabel} 適用 ・ 平均単価{" "}
-            {formatYen(result.breakdown.avgUnitPrice)} 円
+            {result.periodLabel} 適用
+            {result.breakdown.salary !== null && (
+              <>
+                {" "}
+                ・ 平均単価 {formatYen(result.breakdown.avgUnitPrice)} 円
+              </>
+            )}
           </p>
           {result.rankProvisional &&
             result.breakdown.band.kind === "rank" && (
@@ -150,9 +149,9 @@ function SummaryCard({
                 暫定ランク2で計算中
               </p>
             )}
-          {result.breakdown.status === "fixed" && (
+          {guidance && (
             <div className="mt-3">
-              <StatusGuidance status="fixed" compact />
+              <StatusGuidance status={result.breakdown.status} compact />
             </div>
           )}
           <div className="mt-3">

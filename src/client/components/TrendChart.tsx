@@ -11,6 +11,7 @@ import {
 import type { MonthlyPriceDTO } from "@shared/types";
 import type { SalaryResult } from "@shared/periods";
 import { formatYen } from "@shared/calc";
+import { CONSULT_CHART_SERIES } from "@shared/guidance";
 
 interface ChartPoint {
   month: string;
@@ -82,7 +83,7 @@ export function TrendChart({
           />
           <Tooltip
             formatter={(value: number, name: string) =>
-              name === "要相談（自動計算外）"
+              name === CONSULT_CHART_SERIES
                 ? ["自動計算の対象外", name]
                 : [`${formatYen(value)} 円`, name]
             }
@@ -117,7 +118,7 @@ export function TrendChart({
             <Line
               type="monotone"
               dataKey="consultMark"
-              name="要相談（自動計算外）"
+              name={CONSULT_CHART_SERIES}
               stroke="transparent"
               strokeWidth={0}
               legendType="circle"

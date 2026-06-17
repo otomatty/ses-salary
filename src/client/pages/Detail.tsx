@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { DashboardResponse, SalaryResultDTO } from "@shared/types";
 import { formatYen, formatRate } from "@shared/calc";
+import { CONSULT_GUIDANCE } from "@shared/guidance";
 import { RATE_BANDS } from "@shared/rateTable";
 import { Badge, Card, SectionTitle } from "../components/ui";
 import { SalaryBreakdownCard } from "../components/SalaryBreakdownCard";
@@ -119,12 +120,14 @@ export function Detail({ dashboard }: { dashboard: DashboardResponse }) {
                         {rate === null ? "—" : formatRate(rate)}
                       </td>
                       <td className="py-2 text-right font-medium">
-                        {salary === null ? "要相談" : formatYen(salary)}
+                        {salary === null
+                          ? CONSULT_GUIDANCE.badge
+                          : formatYen(salary)}
                         {recalcDiffers && (
                           <span className="block text-xs font-normal text-amber-600">
                             再計算:{" "}
                             {b.salary === null
-                              ? "要相談"
+                              ? CONSULT_GUIDANCE.badge
                               : formatYen(b.salary)}
                           </span>
                         )}
@@ -167,7 +170,7 @@ export function Detail({ dashboard }: { dashboard: DashboardResponse }) {
                 if (b.kind === "consult") {
                   cells = (
                     <td colSpan={3} className="py-2 text-right text-amber-600">
-                      要相談
+                      {CONSULT_GUIDANCE.badge}
                     </td>
                   );
                 } else if (b.kind === "fixed") {

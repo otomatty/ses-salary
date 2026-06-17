@@ -6,7 +6,11 @@
  */
 
 import { findBand, type RateBand, type Rank } from "./rateTable";
-import { CONSULT_GUIDANCE, FIXED_GUIDANCE } from "./guidance";
+import {
+  formatConsultFormula,
+  formatFixedFormula,
+  guidanceNote,
+} from "./guidance";
 
 /** 計算結果の区分 */
 export type SalaryStatus =
@@ -80,8 +84,8 @@ export function calcSalary(months: PricePoint[], rank: Rank): SalaryBreakdown {
       status: "consult",
       rate: null,
       salary: null,
-      formula: `平均単価 ${formatYen(avg)} 円 ≧ 1,400,000 円 → 要相談`,
-      note: `${CONSULT_GUIDANCE.reason} ${CONSULT_GUIDANCE.nextAction}`,
+      formula: formatConsultFormula(avg),
+      note: guidanceNote("consult"),
     };
   }
 
@@ -96,8 +100,8 @@ export function calcSalary(months: PricePoint[], rank: Rank): SalaryBreakdown {
       status: "fixed",
       rate: null,
       salary,
-      formula: `平均単価 ${formatYen(avg)} 円 < 400,000 円 → 一律 ${formatYen(salary)} 円`,
-      note: `${FIXED_GUIDANCE.reason} ${FIXED_GUIDANCE.nextAction}`,
+      formula: formatFixedFormula(avg, salary),
+      note: guidanceNote("fixed"),
     };
   }
 
