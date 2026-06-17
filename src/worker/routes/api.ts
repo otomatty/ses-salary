@@ -131,9 +131,9 @@ async function loadSavedResults(
 }
 
 /**
- * 来期（最新単価の翌月適用）の確定スナップショットを `salary_results` に upsert する。
+ * 来期（最新単価が属する四半期の次四半期適用）の確定スナップショットを `salary_results` に upsert する。
  * 単価/ランクの保存後に呼び、同一 applied_from は最新値で更新する（PRD §9）。
- * 算出に必要な直前3ヶ月が揃っていない場合は何もしない。
+ * 算出に必要な直前四半期（3ヶ月）が揃っていない場合は何もしない。
  */
 async function snapshotNextPeriod(env: Env, userId: string): Promise<void> {
   const { priceDTOs, rankDTOs } = await loadUserData(env, userId);
