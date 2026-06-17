@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP",
+    Meiryo,
+    sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+}

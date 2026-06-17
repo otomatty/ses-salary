@@ -1,0 +1,9 @@
+# ローカル開発用のシークレット。`.dev.vars` にコピーして使う（git 管理対象外）。
+# 本番では `wrangler secret put <NAME>` で設定する。
+
+# セッション Cookie の署名鍵（本番では必ずランダムな長い文字列に）
+SESSION_SECRET="change-me-to-a-long-random-string"
+
+# Google OAuth（本番ログインを試す場合のみ。開発は DEV_AUTH で代替可）
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
