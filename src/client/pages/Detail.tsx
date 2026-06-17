@@ -1,14 +1,19 @@
 import type { ReactNode } from "react";
-import type { DashboardResponse } from "@shared/types";
+import type { DashboardResponse, SalaryResultDTO } from "@shared/types";
 import { formatYen, formatRate } from "@shared/calc";
 import { RATE_BANDS } from "@shared/rateTable";
-import { Card, SectionTitle } from "../components/ui";
+import { Badge, Card, SectionTitle } from "../components/ui";
 import { SalaryBreakdownCard } from "../components/SalaryBreakdownCard";
 import { navigate } from "../router";
 
 /** 計算根拠の内訳（PRD §8 画面4 / §6.3）。検算用。 */
 export function Detail({ dashboard }: { dashboard: DashboardResponse }) {
   const hasAny = dashboard.current || dashboard.next;
+
+  // 適用月 → 保存済み（確定）スナップショット
+  const savedByMonth = new Map<string, SalaryResultDTO>(
+    dashboard.savedResults.map((s) => [s.appliedFrom, s]),
+  );
 
   return (
     <div className="space-y-6">
@@ -43,11 +48,18 @@ export function Detail({ dashboard }: { dashboard: DashboardResponse }) {
       {dashboard.history.length > 0 && (
         <Card>
           <SectionTitle>計算結果の履歴</SectionTitle>
+          <p className="mb-3 text-xs text-slate-400">
+            <span className="font-medium text-emerald-700">確定</span>
+            は保存済みスナップショット（当時の率・額をそのまま保持）、
+            <span className="font-medium text-slate-500">再計算</span>
+            は現行の早見表で再計算した値です。早見表改定後は両者が異なる場合があります。
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
                   <th className="py-2 pr-3">適用期間</th>
+                  <th className="py-2 pr-3">区分</th>
                   <th className="py-2 pr-3">平均単価</th>
                   <th className="py-2 pr-3">帯</th>
                   <th className="py-2 pr-3">ランク</th>
@@ -56,36 +68,70 @@ export function Detail({ dashboard }: { dashboard: DashboardResponse }) {
                 </tr>
               </thead>
               <tbody>
-                {[...dashboard.history].reverse().map((r) => (
-                  <tr
-                    key={r.appliedFrom}
-                    className="border-b border-slate-50 text-slate-700"
-                  >
-                    <td className="py-2 pr-3 whitespace-nowrap">
-                      {r.periodLabel}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {formatYen(r.breakdown.avgUnitPrice)}
-                    </td>
-                    <td className="py-2 pr-3">{r.breakdown.band.code}</td>
-                    <td className="py-2 pr-3">
-                      {r.breakdown.status === "fixed" ||
-                      r.breakdown.band.kind === "single"
-                        ? "—"
-                        : r.breakdown.rank}
-                    </td>
-                    <td className="py-2 pr-3">
-                      {r.breakdown.rate === null
-                        ? "—"
-                        : formatRate(r.breakdown.rate)}
-                    </td>
-                    <td className="py-2 text-right font-medium">
-                      {r.breakdown.salary === null
-                        ? "要相談"
-                        : formatYen(r.breakdown.salary)}
-                    </td>
-                  </tr>
-                ))}
+                {[...dashboard.history].reverse().map((r) => {
+                  const saved = savedByMonth.get(r.appliedFrom);
+                  // 確定値があれば確定値を主表示し、再計算値と異なれば併記する。
+                  const b = r.breakdown;
+                  const band = saved ? saved.appliedBand : b.band.code;
+                  const isSingleOrFixed =
+                    b.status === "fixed" || b.band.kind === "single";
+                  const savedBandKind = saved
+                    ? RATE_BANDS.find((x) => x.code === saved.appliedBand)
+                        ?.kind
+                    : undefined;
+                  const rankCell = saved
+                    ? saved.appliedRate === null || savedBandKind === "single"
+                      ? "—"
+                      : saved.appliedRank
+                    : isSingleOrFixed
+                      ? "—"
+                      : b.rank;
+                  const rate = saved ? saved.appliedRate : b.rate;
+                  const salary = saved ? saved.salary : b.salary;
+                  const recalcDiffers =
+                    saved != null &&
+                    (saved.salary !== b.salary ||
+                      saved.appliedRate !== b.rate ||
+                      saved.appliedBand !== b.band.code);
+                  return (
+                    <tr
+                      key={r.appliedFrom}
+                      className="border-b border-slate-50 text-slate-700"
+                    >
+                      <td className="py-2 pr-3 whitespace-nowrap">
+                        {r.periodLabel}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {saved ? (
+                          <Badge tone="green">確定</Badge>
+                        ) : (
+                          <Badge tone="slate">再計算</Badge>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {formatYen(
+                          saved ? saved.avgUnitPrice : b.avgUnitPrice,
+                        )}
+                      </td>
+                      <td className="py-2 pr-3">{band}</td>
+                      <td className="py-2 pr-3">{rankCell}</td>
+                      <td className="py-2 pr-3">
+                        {rate === null ? "—" : formatRate(rate)}
+                      </td>
+                      <td className="py-2 text-right font-medium">
+                        {salary === null ? "要相談" : formatYen(salary)}
+                        {recalcDiffers && (
+                          <span className="block text-xs font-normal text-amber-600">
+                            再計算:{" "}
+                            {b.salary === null
+                              ? "要相談"
+                              : formatYen(b.salary)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

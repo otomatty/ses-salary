@@ -80,3 +80,4 @@ export const salaryResults = sqliteTable(
 export type UserRow = typeof users.$inferSelect;
 export type MonthlyPriceRow = typeof monthlyPrices.$inferSelect;
 export type RankHistoryRow = typeof rankHistory.$inferSelect;
+export type SalaryResultRow = typeof salaryResults.$inferSelect;
