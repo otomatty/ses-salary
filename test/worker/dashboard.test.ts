@@ -2,9 +2,14 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { postJson, request, login } from "./helpers";
 import { currentYearMonth, addMonths } from "@shared/periods";
 
-/** 当月を基準に n ヶ月前の "YYYY-MM" を返す。 */
+// 基準月はテスト群を通して一度だけ固定する。
+// 実行中に月が切り替わっても、投入月と検証月がズレないようにするため。
+const baseYm = currentYearMonth();
+const nextYm = addMonths(baseYm, 1);
+
+/** baseYm を基準に n ヶ月前の "YYYY-MM" を返す。 */
 function monthsAgo(n: number): string {
-  return addMonths(currentYearMonth(), -n);
+  return addMonths(baseYm, -n);
 }
 
 describe("/api/dashboard", () => {
@@ -56,12 +61,12 @@ describe("/api/dashboard", () => {
     expect(body.current?.breakdown.band.code).toBe("I");
     expect(body.current?.breakdown.salary).toBe(558_900);
     // 来期（最新単価=当月 の翌月適用）
-    expect(body.next?.appliedFrom).toBe(addMonths(currentYearMonth(), 1));
+    expect(body.next?.appliedFrom).toBe(nextYm);
     expect(body.next?.breakdown.salary).toBe(558_900);
 
     // 単価 POST 時に来期スナップショットが salary_results へ保存されている（PRD §9）
     const snap = body.savedResults.find(
-      (r) => r.appliedFrom === addMonths(currentYearMonth(), 1),
+      (r) => r.appliedFrom === nextYm,
     );
     expect(snap).toBeDefined();
     expect(snap?.salary).toBe(558_900);

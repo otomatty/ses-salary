@@ -29,6 +29,10 @@ export default defineWorkersConfig(async () => {
           // テストごとにストレージを分離し、状態の漏れを防ぐ。
           isolatedStorage: true,
           miniflare: {
+            // 本番（wrangler.jsonc）は "2025-01-09" だが、ここは意図的に
+            // "2024-12-30" にしている。vitest-pool-workers 0.6.4 同梱の workerd が
+            // サポートする最大日付がこれで、より新しい日付を指定すると警告を出して
+            // 結局この日付へフォールバックするため、ノイズを避けて明示的に揃えている。
             compatibilityDate: "2024-12-30",
             compatibilityFlags: ["nodejs_compat"],
             d1Databases: ["DB"],
