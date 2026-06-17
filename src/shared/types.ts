@@ -2,6 +2,7 @@
 
 import type { Rank } from "./rateTable";
 import type { SalaryResult } from "./periods";
+import type { SalaryStatus } from "./calc";
 
 export interface ApiUser {
   id: string;
@@ -21,6 +22,23 @@ export interface RankHistoryDTO {
   rank: Rank;
 }
 
+/**
+ * 永続化された給与計算結果スナップショット（PRD §9 / salary_results）。
+ * 確定時点の率・額をそのまま保持する監査用レコード。
+ */
+export interface SalaryResultDTO {
+  id: string;
+  appliedFrom: string; // "YYYY-MM"
+  avgUnitPrice: number;
+  appliedBand: string;
+  appliedRank: Rank;
+  appliedRate: number | null;
+  salary: number | null;
+  status: SalaryStatus;
+  /** 計算（保存）日時 unix ms */
+  calculatedAt: number;
+}
+
 /** GET /api/me */
 export interface MeResponse {
   user: ApiUser | null;
@@ -37,6 +55,8 @@ export interface DashboardResponse {
   next: SalaryResult | null;
   /** 過去〜来期の給与推移（古い順） */
   history: SalaryResult[];
+  /** 確定保存済みスナップショット（古い順）。再計算値と区別表示するために併記する */
+  savedResults: SalaryResultDTO[];
   /** 来期計算に必要な月単価が不足している場合のメッセージ */
   nextPending: string | null;
 }

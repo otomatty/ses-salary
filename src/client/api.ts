@@ -4,6 +4,7 @@ import type {
   DashboardResponse,
   MeResponse,
   MonthlyPriceDTO,
+  SalaryResultDTO,
 } from "@shared/types";
 import type { Rank } from "@shared/rateTable";
 
@@ -35,6 +36,9 @@ async function request<T>(
 export const api = {
   me: () => request<MeResponse>("/api/me"),
   dashboard: () => request<DashboardResponse>("/api/dashboard"),
+
+  salaryResults: () =>
+    request<{ results: SalaryResultDTO[] }>("/api/salary-results"),
 
   savePrice: (yearMonth: string, unitPrice: number) =>
     request<{ price: MonthlyPriceDTO }>("/api/prices", {

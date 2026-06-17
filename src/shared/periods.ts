@@ -3,7 +3,12 @@
  * 各期の給与を組み立てるためのヘルパー。
  */
 
-import { calcSalary, type PricePoint, type SalaryBreakdown } from "./calc";
+import {
+  calcSalary,
+  type PricePoint,
+  type SalaryBreakdown,
+  type SalaryStatus,
+} from "./calc";
 import type { Rank } from "./rateTable";
 
 export interface RankHistoryEntry {
@@ -106,6 +111,67 @@ export function computeSalaryForAppliedMonth(
     periodLabel: `${appliedFrom} 〜 ${addMonths(appliedFrom, 2)}`,
     breakdown,
   };
+}
+
+/**
+ * 給与計算結果スナップショットの中身（PRD §9）。
+ * `salary_results` テーブルに永続化するフィールドと一致させる。
+ * 「いつ・どの帯・どのランク・どの率で計算したか」を後から追跡するための値で、
+ * 早見表が改定されても保存時点の率・額をそのまま保持する。
+ */
+export interface SalarySnapshot {
+  /** この給与が適用される最初の月 "YYYY-MM" */
+  appliedFrom: string;
+  avgUnitPrice: number;
+  /** 判定された帯コード（例: "I", "A-0", "FIXED"） */
+  appliedBand: string;
+  appliedRank: Rank;
+  /** 適用された還元率（％）。要相談/固定は null */
+  appliedRate: number | null;
+  /** 給与（総支給, 円）。要相談は null */
+  salary: number | null;
+  status: SalaryStatus;
+}
+
+/** 計算結果（SalaryResult）から永続化用スナップショットへ変換する。 */
+export function toSnapshot(result: SalaryResult): SalarySnapshot {
+  const b = result.breakdown;
+  return {
+    appliedFrom: result.appliedFrom,
+    avgUnitPrice: b.avgUnitPrice,
+    appliedBand: b.band.code,
+    appliedRank: b.rank,
+    appliedRate: b.rate,
+    salary: b.salary,
+    status: b.status,
+  };
+}
+
+/**
+ * 来期（最新の月単価の翌月から適用）の確定スナップショットを組み立てる。
+ * 月単価が未登録、または直前3ヶ月が揃わず算出できない場合は null。
+ * 単価/ランク保存時の永続化に使う。
+ */
+export function buildNextPeriodSnapshot(
+  prices: PricePoint[],
+  rankHistory: RankHistoryEntry[],
+  rankFallback: Rank = 2,
+): SalarySnapshot | null {
+  if (prices.length === 0) return null;
+  const sorted = [...prices].sort((a, b) =>
+    compareYM(a.yearMonth, b.yearMonth),
+  );
+  const latest = sorted[sorted.length - 1].yearMonth;
+  const appliedFrom = addMonths(latest, 1);
+  const priceMap = new Map(prices.map((p) => [p.yearMonth, p.unitPrice]));
+  const result = computeSalaryForAppliedMonth(
+    appliedFrom,
+    priceMap,
+    rankHistory,
+    rankFallback,
+  );
+  if (!result) return null;
+  return toSnapshot(result);
 }
 
 /**

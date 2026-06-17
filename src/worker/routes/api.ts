@@ -12,19 +12,23 @@ import { getUserIdFromRequest } from "../auth";
 import { isValidYearMonth } from "@shared/periods";
 import {
   buildSalaryHistory,
+  buildNextPeriodSnapshot,
   computeSalaryForAppliedMonth,
   currentYearMonth,
   addMonths,
   rankAt,
   type RankHistoryEntry,
 } from "@shared/periods";
+import type { PricePoint, SalaryStatus } from "@shared/calc";
 import type { Rank } from "@shared/rateTable";
 import type {
   DashboardResponse,
   MeResponse,
   MonthlyPriceDTO,
   RankHistoryDTO,
+  SalaryResultDTO,
 } from "@shared/types";
+import type { SalaryResultRow } from "../db/schema";
 
 type AppEnv = { Bindings: Env; Variables: { userId: string } };
 
@@ -93,10 +97,109 @@ async function loadUserData(env: Env, userId: string) {
   return { priceDTOs, rankDTOs };
 }
 
+function toResultDTO(r: SalaryResultRow): SalaryResultDTO {
+  return {
+    id: r.id,
+    appliedFrom: r.appliedFrom,
+    avgUnitPrice: r.avgUnitPrice,
+    appliedBand: r.appliedBand,
+    appliedRank: r.appliedRank as Rank,
+    appliedRate: r.appliedRate,
+    salary: r.salary,
+    status: r.status as SalaryStatus,
+    calculatedAt: r.calculatedAt,
+  };
+}
+
+/** 保存済みスナップショットを古い順で取得する。 */
+async function loadSavedResults(
+  env: Env,
+  userId: string,
+): Promise<SalaryResultDTO[]> {
+  const db = getDb(env.DB);
+  const rows = await db
+    .select()
+    .from(schema.salaryResults)
+    .where(eq(schema.salaryResults.userId, userId))
+    .all();
+  return rows
+    .map(toResultDTO)
+    .sort((a, b) => (a.appliedFrom < b.appliedFrom ? -1 : 1));
+}
+
+/**
+ * 来期（最新単価の翌月適用）の確定スナップショットを `salary_results` に upsert する。
+ * 単価/ランクの保存後に呼び、同一 applied_from は最新値で更新する（PRD §9）。
+ * 算出に必要な直前3ヶ月が揃っていない場合は何もしない。
+ */
+async function snapshotNextPeriod(env: Env, userId: string): Promise<void> {
+  const { priceDTOs, rankDTOs } = await loadUserData(env, userId);
+  const pricePoints: PricePoint[] = priceDTOs.map((p) => ({
+    yearMonth: p.yearMonth,
+    unitPrice: p.unitPrice,
+  }));
+  const rankHistory: RankHistoryEntry[] = rankDTOs.map((r) => ({
+    effectiveFrom: r.effectiveFrom,
+    rank: r.rank,
+  }));
+
+  const snap = buildNextPeriodSnapshot(pricePoints, rankHistory);
+  if (!snap) return;
+
+  const db = getDb(env.DB);
+  const now = Date.now();
+  const existing = await db
+    .select()
+    .from(schema.salaryResults)
+    .where(
+      and(
+        eq(schema.salaryResults.userId, userId),
+        eq(schema.salaryResults.appliedFrom, snap.appliedFrom),
+      ),
+    )
+    .get();
+
+  if (existing) {
+    await db
+      .update(schema.salaryResults)
+      .set({
+        avgUnitPrice: snap.avgUnitPrice,
+        appliedBand: snap.appliedBand,
+        appliedRank: snap.appliedRank,
+        appliedRate: snap.appliedRate,
+        salary: snap.salary,
+        status: snap.status,
+        calculatedAt: now,
+      })
+      .where(eq(schema.salaryResults.id, existing.id))
+      .run();
+    return;
+  }
+
+  await db
+    .insert(schema.salaryResults)
+    .values({
+      id: newId(),
+      userId,
+      appliedFrom: snap.appliedFrom,
+      avgUnitPrice: snap.avgUnitPrice,
+      appliedBand: snap.appliedBand,
+      appliedRank: snap.appliedRank,
+      appliedRate: snap.appliedRate,
+      salary: snap.salary,
+      status: snap.status,
+      calculatedAt: now,
+    })
+    .run();
+}
+
 // --- GET /api/dashboard ---
 apiApp.get("/api/dashboard", async (c) => {
   const userId = c.get("userId");
-  const { priceDTOs, rankDTOs } = await loadUserData(c.env, userId);
+  const [{ priceDTOs, rankDTOs }, savedResults] = await Promise.all([
+    loadUserData(c.env, userId),
+    loadSavedResults(c.env, userId),
+  ]);
 
   const rankHistory: RankHistoryEntry[] = rankDTOs.map((r) => ({
     effectiveFrom: r.effectiveFrom,
@@ -138,8 +241,16 @@ apiApp.get("/api/dashboard", async (c) => {
     current,
     next,
     history,
+    savedResults,
     nextPending,
   });
+});
+
+// --- GET /api/salary-results  (保存済みスナップショットの履歴) ---
+apiApp.get("/api/salary-results", async (c) => {
+  const userId = c.get("userId");
+  const results = await loadSavedResults(c.env, userId);
+  return c.json<{ results: SalaryResultDTO[] }>({ results });
 });
 
 // --- GET /api/prices ---
@@ -186,6 +297,8 @@ apiApp.post("/api/prices", async (c) => {
       .set({ unitPrice: Math.round(unitPrice), updatedAt: Date.now() })
       .where(eq(schema.monthlyPrices.id, existing.id))
       .run();
+    // 来期の確定スナップショットを保存（PRD §9）
+    await snapshotNextPeriod(c.env, userId);
     return c.json({
       price: { id: existing.id, yearMonth, unitPrice: Math.round(unitPrice) },
     });
@@ -199,6 +312,8 @@ apiApp.post("/api/prices", async (c) => {
     updatedAt: Date.now(),
   };
   await db.insert(schema.monthlyPrices).values(row).run();
+  // 来期の確定スナップショットを保存（PRD §9）
+  await snapshotNextPeriod(c.env, userId);
   return c.json(
     { price: { id: row.id, yearMonth, unitPrice: row.unitPrice } },
     201,
@@ -255,6 +370,8 @@ apiApp.post("/api/rank", async (c) => {
       .set({ rank, updatedAt: Date.now() })
       .where(eq(schema.rankHistory.id, existing.id))
       .run();
+    // 来期の確定スナップショットを保存（PRD §9）
+    await snapshotNextPeriod(c.env, userId);
     return c.json({ rank: { id: existing.id, effectiveFrom, rank } });
   }
 
@@ -266,6 +383,8 @@ apiApp.post("/api/rank", async (c) => {
     updatedAt: Date.now(),
   };
   await db.insert(schema.rankHistory).values(row).run();
+  // 来期の確定スナップショットを保存（PRD §9）
+  await snapshotNextPeriod(c.env, userId);
   return c.json({ rank: { id: row.id, effectiveFrom, rank } }, 201);
 });
 
