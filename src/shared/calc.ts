@@ -6,6 +6,11 @@
  */
 
 import { findBand, type RateBand, type Rank } from "./rateTable";
+import {
+  formatConsultFormula,
+  formatFixedFormula,
+  guidanceNote,
+} from "./guidance";
 
 /** 計算結果の区分 */
 export type SalaryStatus =
@@ -79,8 +84,8 @@ export function calcSalary(months: PricePoint[], rank: Rank): SalaryBreakdown {
       status: "consult",
       rate: null,
       salary: null,
-      formula: `平均単価 ${formatYen(avg)} 円 ≧ 1,400,000 円 → 要相談`,
-      note: "平均単価が140万円以上のため自動計算の対象外です。給与は会社と要相談で決定します。",
+      formula: formatConsultFormula(avg),
+      note: guidanceNote("consult"),
     };
   }
 
@@ -95,8 +100,8 @@ export function calcSalary(months: PricePoint[], rank: Rank): SalaryBreakdown {
       status: "fixed",
       rate: null,
       salary,
-      formula: `平均単価 ${formatYen(avg)} 円 < 400,000 円 → 一律 ${formatYen(salary)} 円`,
-      note: "平均単価が40万円未満のため、還元率ではなく固定額が適用されます。",
+      formula: formatFixedFormula(avg, salary),
+      note: guidanceNote("fixed"),
     };
   }
 
