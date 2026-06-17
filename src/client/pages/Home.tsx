@@ -39,7 +39,7 @@ export function Home({
       </div>
 
       {/* 各画面への入口 */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <NavTile
           title="月単価の入力"
           desc="各月の単価を追加・編集"
@@ -49,6 +49,11 @@ export function Home({
           title="計算根拠の内訳"
           desc="帯・ランク・率・式を確認"
           onClick={() => navigate("detail")}
+        />
+        <NavTile
+          title="単価シミュレーション"
+          desc="仮単価で次の給与を試算"
+          onClick={() => navigate("simulate")}
         />
         <NavTile
           title="設定"
