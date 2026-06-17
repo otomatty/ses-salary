@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { SalaryResult } from "@shared/periods";
 import { formatYen, formatRate } from "@shared/calc";
 import { Badge, Card } from "./ui";
+import { StatusGuidance } from "./StatusGuidance";
 
 /**
  * 計算根拠の内訳表示（PRD §6.3）。
@@ -78,10 +79,18 @@ export function SalaryBreakdownCard({
         </Row>
       </dl>
 
-      {b.note && (
-        <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          {b.note}
-        </p>
+      {/* 要相談・固定額は理由＋次の行動を案内（PRD §12.4）。
+          通常帯の補足（単一レート等）は従来どおり note を表示する。 */}
+      {b.status === "consult" || b.status === "fixed" ? (
+        <div className="mt-4">
+          <StatusGuidance status={b.status} />
+        </div>
+      ) : (
+        b.note && (
+          <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            {b.note}
+          </p>
+        )
       )}
 
       {/* 評価ランクが暫定（未設定）で、かつランクが計算に影響する帯のときに明示する（PRD §12.3） */}

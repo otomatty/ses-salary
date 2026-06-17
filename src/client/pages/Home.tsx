@@ -10,6 +10,7 @@ import {
   NoticeBanner,
 } from "../components/ui";
 import { TrendChart } from "../components/TrendChart";
+import { StatusGuidance } from "../components/StatusGuidance";
 import { navigate } from "../router";
 
 /** ホーム画面（PRD §8 画面2）。推移グラフを主役に、今期・来期サマリを表示。 */
@@ -124,6 +125,14 @@ function SummaryCard({
         <div>
           <p className="text-2xl font-bold text-amber-600">要相談</p>
           <p className="mt-1 text-xs text-slate-400">{result.periodLabel} 適用</p>
+          <div className="mt-3">
+            <StatusGuidance status={result.breakdown.status} compact />
+          </div>
+          <div className="mt-3">
+            <Button variant="ghost" onClick={() => navigate("detail")}>
+              計算根拠を見る →
+            </Button>
+          </div>
         </div>
       ) : (
         <div>
@@ -141,6 +150,11 @@ function SummaryCard({
                 暫定ランク2で計算中
               </p>
             )}
+          {result.breakdown.status === "fixed" && (
+            <div className="mt-3">
+              <StatusGuidance status="fixed" compact />
+            </div>
+          )}
           <div className="mt-3">
             <Button variant="ghost" onClick={() => navigate("detail")}>
               計算根拠を見る →
