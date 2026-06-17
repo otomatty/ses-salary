@@ -50,13 +50,13 @@ test/            計算ロジックのユニットテスト
 ### 1. 依存関係のインストール
 
 ```bash
-npm install
+bun install
 ```
 
 ### 2. D1 データベースの作成
 
 ```bash
-npx wrangler d1 create ses-salary-db
+bunx wrangler d1 create ses-salary-db
 ```
 
 出力された `database_id` を `wrangler.jsonc` の
@@ -66,9 +66,9 @@ npx wrangler d1 create ses-salary-db
 
 ```bash
 # ローカル
-npm run db:migrate:local
+bun run db:migrate:local
 # 本番（D1 リモート）
-npm run db:migrate:remote
+bun run db:migrate:remote
 ```
 
 ### 4. 開発用シークレット
@@ -81,7 +81,7 @@ cp .dev.vars.example .dev.vars
 ### 5. ローカル開発サーバ
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 ログイン画面の「**開発用ログイン**」ボタンで認証をスキップして動作確認できます
@@ -90,7 +90,7 @@ npm run dev
 ### 6. テスト
 
 ```bash
-npm test
+bun run test
 ```
 
 ## Google SSO（本番）の設定
@@ -100,9 +100,9 @@ npm test
 3. シークレットを登録:
 
    ```bash
-   npx wrangler secret put GOOGLE_CLIENT_ID
-   npx wrangler secret put GOOGLE_CLIENT_SECRET
-   npx wrangler secret put SESSION_SECRET
+   bunx wrangler secret put GOOGLE_CLIENT_ID
+   bunx wrangler secret put GOOGLE_CLIENT_SECRET
+   bunx wrangler secret put SESSION_SECRET
    ```
 
 4. `wrangler.jsonc` の `vars` を設定:
@@ -113,7 +113,7 @@ npm test
 ## デプロイ
 
 ```bash
-npm run deploy
+bun run deploy
 ```
 
 ## 計算仕様（要点）
