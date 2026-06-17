@@ -42,7 +42,7 @@ src/
     pages/         ログイン/ホーム/月単価/計算根拠/設定
     components/    UI・グラフ・計算根拠カード
 migrations/      D1 マイグレーション（SQL）
-test/            計算ロジックのユニットテスト
+test/            計算ロジックのユニットテスト・Worker API の統合テスト（test/worker/）
 ```
 
 ## セットアップ
@@ -90,8 +90,17 @@ bun run dev
 ### 6. テスト
 
 ```bash
-bun run test
+bun run test           # 全テスト（unit + workers）
+bun run test:unit      # 計算ロジック（src/shared）のみ・Node 環境
+bun run test:workers   # Worker API 統合テストのみ・workerd + D1
 ```
+
+- **unit**: `src/shared` の給与計算・境界値テスト。Cloudflare 非依存で高速。
+- **workers**: `/api/*`・`/auth/*` を実コードのまま workerd 上で実行し、
+  miniflare のローカル D1 にマイグレーションを適用してエンドツーエンドで検証する
+  （`@cloudflare/vitest-pool-workers`）。
+
+CI（`.github/workflows/ci.yml`）は PR ごとに `typecheck → test → build` を実行する。
 
 ## Google SSO（本番）の設定
 

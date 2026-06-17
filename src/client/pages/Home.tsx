@@ -9,7 +9,7 @@ import {
   ErrorBanner,
   NoticeBanner,
 } from "../components/ui";
-import { TrendChart } from "../components/TrendChart";
+import { LazyTrendChart } from "../components/LazyTrendChart";
 import { StatusBadge } from "../components/StatusBadge";
 import { StatusGuidance } from "../components/StatusGuidance";
 import { navigate } from "../router";
@@ -50,7 +50,7 @@ export function Home({
       {/* 推移グラフ（主役） */}
       <Card>
         <SectionTitle>単価・給与の推移</SectionTitle>
-        <TrendChart prices={dashboard.prices} history={dashboard.history} />
+        <LazyTrendChart prices={dashboard.prices} history={dashboard.history} />
       </Card>
 
       {/* 今期・来期サマリ */}
