@@ -1,7 +1,14 @@
 import type { DashboardResponse } from "@shared/types";
 import { formatYen } from "@shared/calc";
 import type { SalaryResult } from "@shared/periods";
-import { Card, SectionTitle, Badge, Button, ErrorBanner } from "../components/ui";
+import {
+  Card,
+  SectionTitle,
+  Badge,
+  Button,
+  ErrorBanner,
+  NoticeBanner,
+} from "../components/ui";
 import { TrendChart } from "../components/TrendChart";
 import { navigate } from "../router";
 
@@ -16,6 +23,27 @@ export function Home({
   return (
     <div className="space-y-6">
       {error && <ErrorBanner message={error} />}
+
+      {/* 評価ランク未設定時の明示＋設定画面への誘導（PRD §12.3） */}
+      {dashboard.rankProvisional && (
+        <NoticeBanner>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">評価ランク未設定（暫定ランク2で計算中）</p>
+              <p className="mt-0.5 text-xs text-amber-700">
+                人事評価で決まる評価ランクがまだ設定されていません。正確な給与計算のため、設定画面でランクを登録してください。
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              className="shrink-0"
+              onClick={() => navigate("settings")}
+            >
+              評価ランクを設定 →
+            </Button>
+          </div>
+        </NoticeBanner>
+      )}
 
       {/* 推移グラフ（主役） */}
       <Card>
@@ -107,6 +135,12 @@ function SummaryCard({
             {result.periodLabel} 適用 ・ 平均単価{" "}
             {formatYen(result.breakdown.avgUnitPrice)} 円
           </p>
+          {result.rankProvisional &&
+            result.breakdown.band.kind === "rank" && (
+              <p className="mt-1 text-xs font-medium text-amber-600">
+                暫定ランク2で計算中
+              </p>
+            )}
           <div className="mt-3">
             <Button variant="ghost" onClick={() => navigate("detail")}>
               計算根拠を見る →

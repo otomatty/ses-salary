@@ -49,6 +49,11 @@ export interface DashboardResponse {
   prices: MonthlyPriceDTO[];
   rankHistory: RankHistoryDTO[];
   currentRank: Rank;
+  /**
+   * 現在の評価ランクが暫定（未設定による fallback）か。
+   * true のとき、ダッシュボード等で「暫定ランクで計算中」である旨を明示する（PRD §12.3）。
+   */
+  rankProvisional: boolean;
   /** 今期（現在適用中）の給与。算出不能なら null */
   current: SalaryResult | null;
   /** 来期（次に適用される）の給与。算出不能なら null */

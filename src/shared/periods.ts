@@ -79,12 +79,30 @@ export function rankAt(
   return applicable[applicable.length - 1].rank;
 }
 
+/**
+ * 指定の年月時点の評価ランクが「暫定（未設定による fallback）」かどうかを返す。
+ * 対象月以前に有効な履歴が1件もない場合は true（rankAt が fallback を返す条件と一致）。
+ * 「本人が明示設定した値」と「暫定値」を区別するために使う（PRD §12.3）。
+ */
+export function isRankProvisional(
+  history: RankHistoryEntry[],
+  ym: string,
+): boolean {
+  return !history.some((h) => compareYM(h.effectiveFrom, ym) <= 0);
+}
+
 export interface SalaryResult {
   /** この給与が適用される最初の月 "YYYY-MM" */
   appliedFrom: string;
   /** 適用期間の表示（例: "2026-04 〜 2026-06"） */
   periodLabel: string;
   breakdown: SalaryBreakdown;
+  /**
+   * 適用された評価ランクが暫定（未設定による fallback）か。
+   * 帯がランク不問（fixed/single/consult）でも「値の出所」として true になり得るため、
+   * 表示側では `breakdown.band.kind === "rank"` と組み合わせて暫定注記の要否を判断する。
+   */
+  rankProvisional: boolean;
 }
 
 /**
@@ -110,6 +128,7 @@ export function computeSalaryForAppliedMonth(
     appliedFrom,
     periodLabel: `${appliedFrom} 〜 ${addMonths(appliedFrom, 2)}`,
     breakdown,
+    rankProvisional: isRankProvisional(rankHistory, appliedFrom),
   };
 }
 

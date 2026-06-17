@@ -17,6 +17,7 @@ import {
   currentYearMonth,
   addMonths,
   rankAt,
+  isRankProvisional,
   type RankHistoryEntry,
 } from "@shared/periods";
 import type { PricePoint, SalaryStatus } from "@shared/calc";
@@ -213,6 +214,7 @@ apiApp.get("/api/dashboard", async (c) => {
 
   const thisMonth = currentYearMonth();
   const currentRank = rankAt(rankHistory, thisMonth);
+  const rankProvisional = isRankProvisional(rankHistory, thisMonth);
 
   // 今期: 現在の月に適用される給与（直前3ヶ月）
   const current = computeSalaryForAppliedMonth(thisMonth, priceMap, rankHistory);
@@ -238,6 +240,7 @@ apiApp.get("/api/dashboard", async (c) => {
     prices: priceDTOs,
     rankHistory: rankDTOs,
     currentRank,
+    rankProvisional,
     current,
     next,
     history,
