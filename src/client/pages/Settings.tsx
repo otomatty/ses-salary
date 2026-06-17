@@ -9,6 +9,7 @@ import {
   SectionTitle,
   Badge,
   ErrorBanner,
+  NoticeBanner,
 } from "../components/ui";
 
 /** 設定画面（PRD §8 画面5）。評価ランクの選択。期ごとに履歴を保持。 */
@@ -49,12 +50,23 @@ export function Settings({
 
   return (
     <div className="space-y-6">
+      {dashboard.rankProvisional && (
+        <NoticeBanner>
+          評価ランクが未設定のため、暫定的にランク2で給与を計算しています。下記でランクを設定すると、暫定表示は消えます。
+        </NoticeBanner>
+      )}
+
       <Card>
         <SectionTitle>現在の評価ランク</SectionTitle>
         <div className="flex items-center gap-3">
-          <Badge tone="indigo">ランク {dashboard.currentRank}</Badge>
+          <Badge tone={dashboard.rankProvisional ? "amber" : "indigo"}>
+            ランク {dashboard.currentRank}
+            {dashboard.rankProvisional ? "（暫定）" : ""}
+          </Badge>
           <span className="text-sm text-slate-500">
-            （{currentYearMonth()} 時点で適用中）
+            {dashboard.rankProvisional
+              ? "（未設定のため暫定値）"
+              : `（${currentYearMonth()} 時点で適用中）`}
           </span>
         </div>
         <p className="mt-3 text-xs text-slate-400">

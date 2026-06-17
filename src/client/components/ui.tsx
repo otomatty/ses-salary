@@ -96,3 +96,20 @@ export function ErrorBanner({ message }: { message: string }) {
     </div>
   );
 }
+
+/** 注意喚起・案内用のバナー（暫定ランクの明示など）。子要素にボタン等も置ける。 */
+export function NoticeBanner({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}

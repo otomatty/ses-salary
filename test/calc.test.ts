@@ -5,6 +5,7 @@ import {
   addMonths,
   precedingMonths,
   rankAt,
+  isRankProvisional,
   computeSalaryForAppliedMonth,
   buildSalaryHistory,
 } from "../src/shared/periods";
@@ -116,6 +117,23 @@ describe("periods helpers", () => {
   });
 });
 
+describe("isRankProvisional", () => {
+  it("履歴が空なら暫定", () => {
+    expect(isRankProvisional([], "2026-06")).toBe(true);
+  });
+
+  it("対象月以前に履歴があれば確定", () => {
+    const history = [{ effectiveFrom: "2026-01", rank: 3 as const }];
+    expect(isRankProvisional(history, "2026-06")).toBe(false);
+    expect(isRankProvisional(history, "2026-01")).toBe(false);
+  });
+
+  it("対象月より後の履歴しかなければ暫定", () => {
+    const history = [{ effectiveFrom: "2026-07", rank: 3 as const }];
+    expect(isRankProvisional(history, "2026-06")).toBe(true);
+  });
+});
+
 describe("computeSalaryForAppliedMonth", () => {
   it("直前3ヶ月が揃っていなければ null", () => {
     const priceMap = new Map([
@@ -137,6 +155,29 @@ describe("computeSalaryForAppliedMonth", () => {
     expect(r?.breakdown.salary).toBe(558_900);
     expect(r?.appliedFrom).toBe("2026-04");
     expect(r?.periodLabel).toBe("2026-04 〜 2026-06");
+  });
+
+  it("ランク履歴が空なら rankProvisional=true（暫定ランクで計算）", () => {
+    const priceMap = new Map([
+      ["2026-01", 1_000_000],
+      ["2026-02", 1_000_000],
+      ["2026-03", 1_000_000],
+    ]);
+    const r = computeSalaryForAppliedMonth("2026-04", priceMap, []);
+    expect(r?.rankProvisional).toBe(true);
+    expect(r?.breakdown.rank).toBe(2); // fallback
+  });
+
+  it("適用月以前にランク履歴があれば rankProvisional=false", () => {
+    const priceMap = new Map([
+      ["2026-01", 1_000_000],
+      ["2026-02", 1_000_000],
+      ["2026-03", 1_000_000],
+    ]);
+    const history = [{ effectiveFrom: "2026-01", rank: 3 as const }];
+    const r = computeSalaryForAppliedMonth("2026-04", priceMap, history);
+    expect(r?.rankProvisional).toBe(false);
+    expect(r?.breakdown.rank).toBe(3);
   });
 });
 

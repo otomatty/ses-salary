@@ -42,6 +42,8 @@ export function buildSimulation(
     appliedFrom,
     periodLabel: periodLabel(appliedFrom),
     breakdown: calcSalary(sorted, rank),
+    // 試算ではユーザーが明示的にランクを選ぶため、暫定ではない。
+    rankProvisional: false,
   };
 }
 

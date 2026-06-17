@@ -66,7 +66,9 @@ export function SalaryBreakdownCard({
         <Row label="評価ランク">
           {b.status === "fixed" || b.band.kind === "single"
             ? "—（不問）"
-            : `ランク ${b.rank}`}
+            : result.rankProvisional
+              ? `ランク ${b.rank}（暫定）`
+              : `ランク ${b.rank}`}
         </Row>
         <Row label="還元率">{b.rate === null ? "—" : formatRate(b.rate)}</Row>
         <Row label="計算式">
@@ -79,6 +81,13 @@ export function SalaryBreakdownCard({
       {b.note && (
         <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
           {b.note}
+        </p>
+      )}
+
+      {/* 評価ランクが暫定（未設定）で、かつランクが計算に影響する帯のときに明示する（PRD §12.3） */}
+      {result.rankProvisional && b.band.kind === "rank" && (
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          評価ランクが未設定のため、暫定的にランク2で計算しています。設定画面でランクを登録すると、この暫定表示は消えます。
         </p>
       )}
     </Card>
