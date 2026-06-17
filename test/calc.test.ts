@@ -4,9 +4,13 @@ import { findBand } from "../src/shared/rateTable";
 import {
   addMonths,
   precedingMonths,
+  quarterStartMonth,
+  quarterMonths,
+  prevQuarterStart,
+  nextQuarterStart,
   rankAt,
   isRankProvisional,
-  computeSalaryForAppliedMonth,
+  computeSalaryForQuarter,
   buildSalaryHistory,
 } from "../src/shared/periods";
 
@@ -106,6 +110,27 @@ describe("periods helpers", () => {
     ]);
   });
 
+  it("quarterStartMonth は四半期の開始月へ正規化する", () => {
+    expect(quarterStartMonth("2026-01")).toBe("2026-01");
+    expect(quarterStartMonth("2026-03")).toBe("2026-01");
+    expect(quarterStartMonth("2026-04")).toBe("2026-04");
+    expect(quarterStartMonth("2026-09")).toBe("2026-07");
+    expect(quarterStartMonth("2026-12")).toBe("2026-10");
+  });
+
+  it("quarterMonths は四半期の3ヶ月を古い順で返す", () => {
+    expect(quarterMonths("2026-07")).toEqual(["2026-07", "2026-08", "2026-09"]);
+    // 開始月でなくても正規化される
+    expect(quarterMonths("2026-05")).toEqual(["2026-04", "2026-05", "2026-06"]);
+  });
+
+  it("prev/nextQuarterStart は四半期を跨ぐ（年跨ぎ含む）", () => {
+    expect(prevQuarterStart("2026-04")).toBe("2026-01");
+    expect(prevQuarterStart("2026-01")).toBe("2025-10");
+    expect(nextQuarterStart("2026-10")).toBe("2027-01");
+    expect(nextQuarterStart("2026-04")).toBe("2026-07");
+  });
+
   it("rankAt は適用開始月以前で最新のランクを返す", () => {
     const history = [
       { effectiveFrom: "2026-01", rank: 1 as const },
@@ -113,7 +138,7 @@ describe("periods helpers", () => {
     ];
     expect(rankAt(history, "2026-03")).toBe(1);
     expect(rankAt(history, "2026-04")).toBe(3);
-    expect(rankAt(history, "2025-12")).toBe(2); // fallback
+    expect(rankAt(history, "2025-12")).toBe(1); // fallback（デフォルトはランク1）
   });
 });
 
@@ -134,27 +159,38 @@ describe("isRankProvisional", () => {
   });
 });
 
-describe("computeSalaryForAppliedMonth", () => {
-  it("直前3ヶ月が揃っていなければ null", () => {
+describe("computeSalaryForQuarter", () => {
+  it("直前四半期の3ヶ月が揃っていなければ null", () => {
     const priceMap = new Map([
       ["2026-01", 1_000_000],
       ["2026-02", 1_000_000],
     ]);
-    expect(
-      computeSalaryForAppliedMonth("2026-04", priceMap, []),
-    ).toBeNull();
+    // 適用四半期 Q2(2026-04) は直前四半期 Q1(2026-01..03) を必要とする
+    expect(computeSalaryForQuarter("2026-04", priceMap, [])).toBeNull();
   });
 
-  it("直前3ヶ月から計算する", () => {
+  it("直前四半期の平均から次の四半期の給与を計算する", () => {
     const priceMap = new Map([
       ["2026-01", 1_000_000],
       ["2026-02", 1_000_000],
       ["2026-03", 1_000_000],
     ]);
-    const r = computeSalaryForAppliedMonth("2026-04", priceMap, []);
-    expect(r?.breakdown.salary).toBe(558_900);
+    const r = computeSalaryForQuarter("2026-04", priceMap, []);
+    // 暫定ランク1 → I帯 54.52% = 545,200
+    expect(r?.breakdown.salary).toBe(545_200);
     expect(r?.appliedFrom).toBe("2026-04");
     expect(r?.periodLabel).toBe("2026-04 〜 2026-06");
+  });
+
+  it("四半期内の任意の月を渡しても開始月へ正規化する", () => {
+    const priceMap = new Map([
+      ["2026-01", 1_000_000],
+      ["2026-02", 1_000_000],
+      ["2026-03", 1_000_000],
+    ]);
+    // Q2 の中の 2026-05 を渡しても Q2(開始 2026-04) として計算する
+    const r = computeSalaryForQuarter("2026-05", priceMap, []);
+    expect(r?.appliedFrom).toBe("2026-04");
   });
 
   it("ランク履歴が空なら rankProvisional=true（暫定ランクで計算）", () => {
@@ -163,19 +199,19 @@ describe("computeSalaryForAppliedMonth", () => {
       ["2026-02", 1_000_000],
       ["2026-03", 1_000_000],
     ]);
-    const r = computeSalaryForAppliedMonth("2026-04", priceMap, []);
+    const r = computeSalaryForQuarter("2026-04", priceMap, []);
     expect(r?.rankProvisional).toBe(true);
-    expect(r?.breakdown.rank).toBe(2); // fallback
+    expect(r?.breakdown.rank).toBe(1); // fallback（デフォルトはランク1）
   });
 
-  it("適用月以前にランク履歴があれば rankProvisional=false", () => {
+  it("適用四半期以前にランク履歴があれば rankProvisional=false", () => {
     const priceMap = new Map([
       ["2026-01", 1_000_000],
       ["2026-02", 1_000_000],
       ["2026-03", 1_000_000],
     ]);
     const history = [{ effectiveFrom: "2026-01", rank: 3 as const }];
-    const r = computeSalaryForAppliedMonth("2026-04", priceMap, history);
+    const r = computeSalaryForQuarter("2026-04", priceMap, history);
     expect(r?.rankProvisional).toBe(false);
     expect(r?.breakdown.rank).toBe(3);
   });
@@ -186,10 +222,10 @@ describe("buildSalaryHistory", () => {
     expect(buildSalaryHistory(months(1_000_000, 1_000_000), [])).toEqual([]);
   });
 
-  it("最新データの翌月（来期）まで給与を出す", () => {
-    const prices = months(1_000_000, 1_000_000, 1_000_000); // 2026-01..03
+  it("最新データの四半期の次（来期）まで給与を出す", () => {
+    const prices = months(1_000_000, 1_000_000, 1_000_000); // 2026-01..03 = Q1
     const history = buildSalaryHistory(prices, []);
-    // 適用月は 2026-04 のみ（最新03の翌月）
+    // 適用四半期は Q2(2026-04) のみ（Q1 の次）
     expect(history).toHaveLength(1);
     expect(history[0].appliedFrom).toBe("2026-04");
   });

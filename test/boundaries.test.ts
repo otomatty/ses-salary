@@ -6,7 +6,7 @@ import {
   type PricePoint,
 } from "../src/shared/calc";
 import {
-  computeSalaryForAppliedMonth,
+  computeSalaryForQuarter,
   buildSalaryHistory,
   rankAt,
   type RankHistoryEntry,
@@ -17,6 +17,17 @@ function months(...prices: number[]): PricePoint[] {
     yearMonth: `2026-${String(i + 1).padStart(2, "0")}`,
     unitPrice: p,
   }));
+}
+
+/** 開始月から連番で月単価を割り当てる（年跨ぎ対応）。 */
+function monthsFrom(start: string, ...prices: number[]): PricePoint[] {
+  const [y0, m0] = start.split("-").map(Number);
+  return prices.map((p, i) => {
+    const total = y0 * 12 + (m0 - 1) + i;
+    const y = Math.floor(total / 12);
+    const m = (total % 12) + 1;
+    return { yearMonth: `${y}-${String(m).padStart(2, "0")}`, unitPrice: p };
+  });
 }
 
 describe("帯境界（findBand）", () => {
@@ -106,44 +117,55 @@ describe("ランク履歴の切替（境界月）", () => {
     expect(rankAt(history, "2026-05")).toBe(3); // 切替後
   });
 
-  it("computeSalaryForAppliedMonth は適用月のランクで率が変わる", () => {
+  it("computeSalaryForQuarter は適用四半期のランクで率が変わる", () => {
     const priceMap = new Map([
+      // Q4-2025（Q1-2026 の基準）
+      ["2025-10", 1_000_000],
+      ["2025-11", 1_000_000],
       ["2025-12", 1_000_000],
+      // Q1-2026（Q2-2026 の基準）
       ["2026-01", 1_000_000],
       ["2026-02", 1_000_000],
       ["2026-03", 1_000_000],
-      ["2026-04", 1_000_000],
     ]);
-    // 適用月 2026-03（直前3ヶ月 2025-12..2026-02）→ ランク1（54.52%）
-    const before = computeSalaryForAppliedMonth("2026-03", priceMap, history);
+    // 適用四半期 Q1(2026-01) → ランク1（54.52%）
+    const before = computeSalaryForQuarter("2026-01", priceMap, history);
     expect(before?.breakdown.rank).toBe(1);
     expect(before?.breakdown.rate).toBe(54.52);
-    // 適用月 2026-04 → 切替後ランク3（57.26%）
-    const after = computeSalaryForAppliedMonth("2026-04", priceMap, history);
+    // 適用四半期 Q2(2026-04) → 切替後ランク3（57.26%）
+    const after = computeSalaryForQuarter("2026-04", priceMap, history);
     expect(after?.breakdown.rank).toBe(3);
     expect(after?.breakdown.rate).toBe(57.26);
     expect(after!.breakdown.salary!).toBeGreaterThan(before!.breakdown.salary!);
   });
 
-  it("buildSalaryHistory は各適用月で切替後のランクを反映する", () => {
-    const prices = months(
+  it("buildSalaryHistory は各適用四半期で切替後のランクを反映する", () => {
+    // 2025-10 〜 2026-06（Q4-2025・Q1-2026・Q2-2026 の3四半期分）
+    const prices = monthsFrom(
+      "2025-10",
+      1_000_000, // 2025-10
+      1_000_000, // 2025-11
+      1_000_000, // 2025-12
       1_000_000, // 2026-01
       1_000_000, // 2026-02
       1_000_000, // 2026-03
       1_000_000, // 2026-04
       1_000_000, // 2026-05
+      1_000_000, // 2026-06
     );
-    // buildSalaryHistory の最初の適用月は first + 3ヶ月 = 2026-04。
-    // 境界を履歴内で跨がせるため、切替を 2026-05 に置く。
-    const switchAt05: RankHistoryEntry[] = [
-      { effectiveFrom: "2026-01", rank: 1 },
-      { effectiveFrom: "2026-05", rank: 3 },
+    // 適用四半期は Q1(2026-01)・Q2(2026-04)・Q3(2026-07)。
+    // 切替を Q2 開始（2026-04）に置く。
+    const switchAtQ2: RankHistoryEntry[] = [
+      { effectiveFrom: "2025-10", rank: 1 },
+      { effectiveFrom: "2026-04", rank: 3 },
     ];
-    const results = buildSalaryHistory(prices, switchAt05);
+    const results = buildSalaryHistory(prices, switchAtQ2);
     const byMonth = new Map(results.map((r) => [r.appliedFrom, r]));
-    // 適用 2026-04 は切替前のランク1
-    expect(byMonth.get("2026-04")?.breakdown.rank).toBe(1);
-    // 適用 2026-05 は切替月ちょうどでランク3
-    expect(byMonth.get("2026-05")?.breakdown.rank).toBe(3);
+    // 適用 Q1(2026-01) は切替前のランク1
+    expect(byMonth.get("2026-01")?.breakdown.rank).toBe(1);
+    // 適用 Q2(2026-04) は切替四半期ちょうどでランク3
+    expect(byMonth.get("2026-04")?.breakdown.rank).toBe(3);
+    // 適用 Q3(2026-07) も切替後ランク3
+    expect(byMonth.get("2026-07")?.breakdown.rank).toBe(3);
   });
 });

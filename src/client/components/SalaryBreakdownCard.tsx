@@ -91,7 +91,7 @@ export function SalaryBreakdownCard({
       {/* 評価ランクが暫定（未設定）で、かつランクが計算に影響する帯のときに明示する（PRD §12.3） */}
       {result.rankProvisional && b.band.kind === "rank" && (
         <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          評価ランクが未設定のため、暫定的にランク2で計算しています。設定画面でランクを登録すると、この暫定表示は消えます。
+          評価ランクが未設定のため、暫定的にランク1で計算しています。設定画面でランクを登録すると、この暫定表示は消えます。
         </p>
       )}
     </Card>

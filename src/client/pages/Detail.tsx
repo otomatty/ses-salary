@@ -21,7 +21,7 @@ export function Detail({ dashboard }: { dashboard: DashboardResponse }) {
       {!hasAny ? (
         <Card>
           <p className="py-6 text-center text-sm text-slate-400">
-            計算根拠を表示するには、直近3ヶ月の月単価が必要です。
+            計算根拠を表示するには、前四半期（3ヶ月）の月単価が必要です。
             <br />
             <button
               onClick={() => navigate("prices")}

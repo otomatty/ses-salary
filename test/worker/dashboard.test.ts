@@ -1,16 +1,22 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { postJson, request, login } from "./helpers";
-import { currentYearMonth, addMonths } from "@shared/periods";
+import {
+  currentYearMonth,
+  quarterStartMonth,
+  prevQuarterStart,
+  nextQuarterStart,
+  quarterMonths,
+} from "@shared/periods";
 
-// 基準月はテスト群を通して一度だけ固定する。
-// 実行中に月が切り替わっても、投入月と検証月がズレないようにするため。
+// 基準四半期はテスト群を通して一度だけ固定する。
+// 実行中に月/四半期が切り替わっても、投入月と検証月がズレないようにするため。
 const baseYm = currentYearMonth();
-const nextYm = addMonths(baseYm, 1);
-
-/** baseYm を基準に n ヶ月前の "YYYY-MM" を返す。 */
-function monthsAgo(n: number): string {
-  return addMonths(baseYm, -n);
-}
+const currentQ = quarterStartMonth(baseYm);
+const prevQ = prevQuarterStart(currentQ);
+const nextQ = nextQuarterStart(currentQ);
+// 今期の基準＝前四半期の3ヶ月。来期の基準＝今四半期の3ヶ月。
+const prevQMonths = quarterMonths(prevQ);
+const currentQMonths = quarterMonths(currentQ);
 
 describe("/api/dashboard", () => {
   let cookie: string;
@@ -35,14 +41,10 @@ describe("/api/dashboard", () => {
     expect(body.nextPending).toContain("月単価がまだ登録されていません");
   });
 
-  it("直近3ヶ月が揃うと今期・来期を算出し、来期スナップショットを永続化する", async () => {
-    // 当月までの直近4ヶ月（今期と来期の両方を算出できるようにする）。
-    for (const n of [3, 2, 1, 0]) {
-      await postJson(
-        "/api/prices",
-        { yearMonth: monthsAgo(n), unitPrice: 1_000_000 },
-        cookie,
-      );
+  it("前四半期・今四半期が揃うと今期・来期を算出し、来期スナップショットを永続化する", async () => {
+    // 前四半期（今期の基準）と今四半期（来期の基準）を 100万 で埋める。
+    for (const ym of [...prevQMonths, ...currentQMonths]) {
+      await postJson("/api/prices", { yearMonth: ym, unitPrice: 1_000_000 }, cookie);
     }
 
     const res = await request("/api/dashboard", {}, cookie);
@@ -57,31 +59,25 @@ describe("/api/dashboard", () => {
       }[];
     };
 
-    // 今期: 平均100万・暫定ランク2 → I帯 55.89% = 558,900
+    // 今期: 前四半期平均100万・暫定ランク1 → I帯 54.52% = 545,200
     expect(body.current?.breakdown.band.code).toBe("I");
-    expect(body.current?.breakdown.salary).toBe(558_900);
-    // 来期（最新単価=当月 の翌月適用）
-    expect(body.next?.appliedFrom).toBe(nextYm);
-    expect(body.next?.breakdown.salary).toBe(558_900);
+    expect(body.current?.breakdown.salary).toBe(545_200);
+    // 来期（今四半期の平均が基準、次の四半期に適用）
+    expect(body.next?.appliedFrom).toBe(nextQ);
+    expect(body.next?.breakdown.salary).toBe(545_200);
 
     // 単価 POST 時に来期スナップショットが salary_results へ保存されている（PRD §9）
-    const snap = body.savedResults.find(
-      (r) => r.appliedFrom === nextYm,
-    );
+    const snap = body.savedResults.find((r) => r.appliedFrom === nextQ);
     expect(snap).toBeDefined();
-    expect(snap?.salary).toBe(558_900);
+    expect(snap?.salary).toBe(545_200);
     expect(snap?.appliedBand).toBe("I");
     expect(snap?.status).toBe("ok");
   });
 
   it("境界値: 平均1,400,000は要相談（来期 salary が null・スナップショットも consult）", async () => {
-    // 来期(当月+1)の直前3ヶ月 = 当月-2..当月 を 1,400,000 で埋める。
-    for (const n of [2, 1, 0]) {
-      await postJson(
-        "/api/prices",
-        { yearMonth: monthsAgo(n), unitPrice: 1_400_000 },
-        cookie,
-      );
+    // 来期の基準＝今四半期の3ヶ月を 1,400,000 で埋める。
+    for (const ym of currentQMonths) {
+      await postJson("/api/prices", { yearMonth: ym, unitPrice: 1_400_000 }, cookie);
     }
     const res = await request("/api/dashboard", {}, cookie);
     const body = (await res.json()) as {
