@@ -1,9 +1,7 @@
 /* HeroUI v3 styles (includes Tailwind CSS v4 + theme tokens + component styles). */
 @import "@heroui/react/styles";
 
-:root {
-  color-scheme: light;
-}
+/* color-scheme は HeroUI のテーマ（html の `dark` クラス）が管理する。 */
 
 html,
 body,

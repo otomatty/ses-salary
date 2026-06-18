@@ -2,6 +2,7 @@ import { Button } from "@heroui/react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import type { ApiUser } from "@shared/types";
 import { api } from "../api";
+import { ThemeToggle } from "../components/ThemeToggle";
 import { UserMenu } from "../components/UserMenu";
 
 /** 認証後の共通レイアウト。ヘッダー＋メイン＋フッター。 */
@@ -29,7 +30,10 @@ export function Layout({
           <Button variant="ghost" size="sm" onPress={() => navigate({ to: "/" })}>
             <span className="text-base font-bold">エンジニア給与計算</span>
           </Button>
-          <UserMenu user={user} onLogout={handleLogout} />
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <UserMenu user={user} onLogout={handleLogout} />
+          </div>
         </div>
       </header>
 
