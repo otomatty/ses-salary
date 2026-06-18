@@ -1,22 +1,20 @@
-import { useEffect, useRef } from "react";
 import {
   Navigate,
   Outlet,
   createRootRoute,
   createRoute,
   createRouter,
-  useNavigate,
-  useRouterState,
 } from "@tanstack/react-router";
 import { Spinner } from "@heroui/react";
 import { useAppContext } from "./context/AppContext";
+import { useOnboardingRedirect } from "./hooks/useOnboardingRedirect";
 import { Layout } from "./pages/Layout";
 import { Home } from "./pages/Home";
 import { Prices } from "./pages/Prices";
 import { Detail } from "./pages/Detail";
 import { Simulate } from "./pages/Simulate";
 import { Settings } from "./pages/Settings";
-import { Onboarding, isOnboardingDone } from "./pages/Onboarding";
+import { Onboarding } from "./pages/Onboarding";
 
 function LoadingScreen() {
   return (
@@ -28,22 +26,8 @@ function LoadingScreen() {
 
 function AppShell() {
   const { dashboard, user, handleLogout } = useAppContext();
-  const navigate = useNavigate();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  // 初回（データが空＝未設定）の利用者を一度だけオンボーディングへ誘導する。
-  // ref で「セッション中1回だけ」に制限し、ホーム等への遷移をブロックしない。
-  const redirectedRef = useRef(false);
-
-  useEffect(() => {
-    if (!dashboard || redirectedRef.current) return;
-    const fresh =
-      dashboard.prices.length === 0 && dashboard.rankHistory.length === 0;
-    if (fresh && !isOnboardingDone() && pathname !== "/onboarding") {
-      redirectedRef.current = true;
-      navigate({ to: "/onboarding" });
-    }
-  }, [dashboard, pathname, navigate]);
-
+  // 初回利用者の誘導は専用 hook に委譲し、AppShell はレイアウトのみを担う。
+  useOnboardingRedirect(dashboard);
   if (!dashboard) return <LoadingScreen />;
   return <Layout user={user} onLogout={handleLogout} />;
 }

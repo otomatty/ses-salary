@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { createRef } from "react";
 import { currentYearMonth } from "@shared/periods";
 import {
   PriceInputTabs,
-  type SinglePriceFormHandle,
+  validateManYenPrice,
 } from "../src/client/components/PriceForms";
 
 vi.mock("../src/client/api", () => ({
@@ -14,49 +13,60 @@ vi.mock("../src/client/api", () => ({
   },
 }));
 
-describe("PriceInputTabs (単発/一括の切り替え)", () => {
+describe("validateManYenPrice", () => {
+  it("空欄・0以下・非数は不正、正の数は妥当", () => {
+    expect(validateManYenPrice(null)).not.toBeNull();
+    expect(validateManYenPrice(0)).not.toBeNull();
+    expect(validateManYenPrice(-1)).not.toBeNull();
+    expect(validateManYenPrice(NaN)).not.toBeNull();
+    expect(validateManYenPrice(80)).toBeNull();
+  });
+});
+
+describe("PriceInputTabs（単発/一括の切り替え）", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("単発入力タブと一括入力タブを切り替えられる", () => {
+  it("単発入力タブと一括入力タブを切り替えられる（非制御）", () => {
     const reload = vi.fn().mockResolvedValue(undefined);
     render(<PriceInputTabs reload={reload} />);
 
-    // 初期は単発入力（「月単価（万円）」ラベルが見える）
+    // 初期は単発入力
     expect(screen.getByText("月単価（万円）")).toBeTruthy();
     expect(screen.queryByText("開始年月")).toBeNull();
 
-    // 一括入力タブへ
     fireEvent.click(screen.getByRole("tab", { name: "一括入力" }));
     expect(screen.getByText("開始年月")).toBeTruthy();
     expect(screen.getByText("終了年月")).toBeTruthy();
 
-    // 単発入力タブへ戻す
     fireEvent.click(screen.getByRole("tab", { name: "単発入力" }));
     expect(screen.getByText("月単価（万円）")).toBeTruthy();
   });
 
-  it("setEdit ハンドルで一括入力から単発入力タブへ切り替わり値が反映される", async () => {
+  it("editTarget を渡すと単発フォームに対象月が反映される（props 経由）", () => {
     const reload = vi.fn().mockResolvedValue(undefined);
-    const ref = createRef<SinglePriceFormHandle>();
-    render(<PriceInputTabs ref={ref} reload={reload} />);
+    render(
+      <PriceInputTabs
+        reload={reload}
+        tab="single"
+        editTarget={{ yearMonth: "2026-05", unitPrice: 800000 }}
+      />,
+    );
 
-    // 一括入力タブに移動しておく
-    fireEvent.click(screen.getByRole("tab", { name: "一括入力" }));
+    // 年月の month 入力に対象月が反映される（通常の制御 input なので値を検証できる）
+    expect(screen.getByDisplayValue("2026-05")).toBeTruthy();
+  });
+
+  it("制御 props で指定したタブが表示される", () => {
+    const reload = vi.fn().mockResolvedValue(undefined);
+    const onTabChange = vi.fn();
+    render(
+      <PriceInputTabs reload={reload} tab="bulk" onTabChange={onTabChange} />,
+    );
+
     expect(screen.getByText("開始年月")).toBeTruthy();
-
-    // 既存月の編集（円単位）を流し込む → 単発入力タブへ戻る
-    ref.current!.setEdit("2026-05", 800000);
-
-    // 単発入力パネルへ自動で切り替わる
-    await waitFor(() => {
-      expect(screen.getByText("月単価（万円）")).toBeTruthy();
-      expect(screen.queryByText("開始年月")).toBeNull();
-    });
-    expect(
-      (screen.getByRole("tab", { name: "単発入力" }) as HTMLElement).getAttribute(
-        "aria-selected",
-      ),
-    ).toBe("true");
+    // タブをクリックすると親へ通知される
+    fireEvent.click(screen.getByRole("tab", { name: "単発入力" }));
+    expect(onTabChange).toHaveBeenCalledWith("single");
   });
 
   it("単発入力で保存すると api.savePrice が呼ばれる", async () => {

@@ -1,42 +1,10 @@
 import { useMemo, useState } from "react";
-import {
-  Alert,
-  Button,
-  Card,
-  Input,
-  Label,
-  ProgressBar,
-  Radio,
-  RadioGroup,
-  TextField,
-} from "@heroui/react";
+import { Button, Card, ProgressBar } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
 import type { DashboardResponse } from "@shared/types";
-import { currentYearMonth } from "@shared/periods";
-import type { Rank } from "@shared/rateTable";
 import { PriceInputTabs } from "../components/PriceForms";
-import { api } from "../api";
-
-/** オンボーディング完了/スキップを記録する localStorage キー（再表示の抑止に使う）。 */
-export const ONBOARDING_DONE_KEY = "onboarding:done";
-
-/** オンボーディングを完了済みとして記録する。 */
-export function markOnboardingDone() {
-  try {
-    localStorage.setItem(ONBOARDING_DONE_KEY, "1");
-  } catch {
-    /* localStorage 不可環境（プライベートモード等）では何もしない。 */
-  }
-}
-
-/** オンボーディング済みかどうか。 */
-export function isOnboardingDone(): boolean {
-  try {
-    return localStorage.getItem(ONBOARDING_DONE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
+import { RankForm } from "../components/RankForm";
+import { markOnboardingDone } from "../lib/onboarding";
 
 const STEP_LABELS = ["ようこそ", "評価ランク", "月単価の入力", "完了"] as const;
 
@@ -55,13 +23,6 @@ export function Onboarding({
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
 
-  // 評価ランク設定（ステップ2）
-  const [rank, setRank] = useState<Rank>(dashboard.currentRank);
-  const [effectiveFrom, setEffectiveFrom] = useState(currentYearMonth());
-  const [rankSaving, setRankSaving] = useState(false);
-  const [rankError, setRankError] = useState<string | null>(null);
-  const [rankSaved, setRankSaved] = useState(false);
-
   const priceCount = dashboard.prices.length;
 
   const progress = useMemo(
@@ -72,21 +33,6 @@ export function Onboarding({
   const finish = () => {
     markOnboardingDone();
     navigate({ to: "/" });
-  };
-
-  const saveRank = async () => {
-    setRankSaving(true);
-    setRankError(null);
-    try {
-      await api.saveRank(rank, effectiveFrom);
-      await reload();
-      setRankSaved(true);
-      setStep(2);
-    } catch (e) {
-      setRankError(e instanceof Error ? e.message : "保存に失敗しました");
-    } finally {
-      setRankSaving(false);
-    }
   };
 
   return (
@@ -151,60 +97,26 @@ export function Onboarding({
               人事評価で決まる評価ランクを選びます。未設定のままだと暫定ランク1で計算されます。
             </Card.Description>
           </Card.Header>
-          <Card.Content className="space-y-4">
-            <RadioGroup
-              value={String(rank)}
-              onChange={(v) => setRank(Number(v) as Rank)}
-              orientation="horizontal"
-            >
-              <Label>ランクを選択</Label>
-              <div className="flex gap-4">
-                {([1, 2, 3] as Rank[]).map((r) => (
-                  <Radio key={r} value={String(r)}>
-                    ランク {r}
-                  </Radio>
-                ))}
-              </div>
-            </RadioGroup>
-
-            <TextField
-              value={effectiveFrom}
-              onChange={setEffectiveFrom}
-              className="max-w-xs"
-            >
-              <Label>適用開始月</Label>
-              <Input type="month" />
-              <p className="text-muted mt-1 text-xs">
-                この月以降の給与計算でこのランクが使われます。
-              </p>
-            </TextField>
-
-            {rankError && (
-              <Alert status="danger">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Description>{rankError}</Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-
-            <div className="flex items-center justify-between">
-              <Button variant="ghost" onPress={() => setStep(0)}>
-                ← 戻る
-              </Button>
-              <div className="flex gap-2">
-                <Button variant="secondary" onPress={() => setStep(2)}>
-                  あとで設定
-                </Button>
-                <Button
-                  variant="primary"
-                  onPress={saveRank}
-                  isDisabled={rankSaving}
-                >
-                  {rankSaving ? "保存中…" : "保存して次へ →"}
-                </Button>
-              </div>
-            </div>
+          <Card.Content>
+            <RankForm
+              initialRank={dashboard.currentRank}
+              reload={reload}
+              saveLabel="保存して次へ →"
+              onSaved={() => setStep(2)}
+              footer={(saveButton) => (
+                <div className="flex items-center justify-between">
+                  <Button variant="ghost" onPress={() => setStep(0)}>
+                    ← 戻る
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" onPress={() => setStep(2)}>
+                      あとで設定
+                    </Button>
+                    {saveButton}
+                  </div>
+                </div>
+              )}
+            />
           </Card.Content>
         </Card>
       )}
@@ -251,7 +163,7 @@ export function Onboarding({
                 ・評価ランク:{" "}
                 <strong className="text-foreground">
                   ランク {dashboard.currentRank}
-                  {rankSaved || !dashboard.rankProvisional ? "" : "（暫定）"}
+                  {dashboard.rankProvisional ? "（暫定）" : ""}
                 </strong>
               </li>
               <li>

@@ -1,11 +1,4 @@
-import {
-  forwardRef,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Alert,
   Button,
@@ -24,8 +17,26 @@ import {
 } from "@shared/periods";
 import { api } from "../api";
 
+/** 単価入力のタブ種別。 */
+export type PriceTab = "single" | "bulk";
+
+/** 既存月の「編集」で単発入力フォームへ流し込む対象（円単位）。 */
+export interface PriceEditTarget {
+  yearMonth: string;
+  unitPrice: number;
+}
+
+const INVALID_PRICE_MESSAGE = "単価を正しく入力してください（万円単位）。";
+
+/** 万円単位の単価入力を検証する。妥当なら null、不正ならエラーメッセージを返す。 */
+export function validateManYenPrice(value: number | null): string | null {
+  return value == null || !Number.isFinite(value) || value <= 0
+    ? INVALID_PRICE_MESSAGE
+    : null;
+}
+
 /** 万円単位の単価入力フィールド。空欄は null として扱う。 */
-export function ManYenField({
+function ManYenField({
   label,
   value,
   onChange,
@@ -54,40 +65,39 @@ export function ManYenField({
   );
 }
 
-/** 親から単発入力フォームへ編集対象を流し込むための命令ハンドル。 */
-export interface SinglePriceFormHandle {
-  /** 既存月（円単位の単価）を編集フォームへ反映する。 */
-  setEdit: (yearMonth: string, unitPriceYen: number) => void;
-}
-
 /** 単発入力フォーム（1ヶ月分の単価を追加・編集）。 */
-export const SinglePriceForm = forwardRef<
-  SinglePriceFormHandle,
-  { reload: () => Promise<void> }
->(function SinglePriceForm({ reload }, ref) {
+function SinglePriceForm({
+  reload,
+  editTarget,
+}: {
+  reload: () => Promise<void>;
+  /** 親から渡される編集対象。差し替えられるたびにフォームへ反映する。 */
+  editTarget?: PriceEditTarget | null;
+}) {
   const [yearMonth, setYearMonth] = useState(currentYearMonth());
   const [priceMan, setPriceMan] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useImperativeHandle(ref, () => ({
-    setEdit: (ym: string, yen: number) => {
-      setYearMonth(ym);
-      setPriceMan(yenToManYen(yen));
-      setFormError(null);
-    },
-  }));
+  // 既存月の「編集」操作を反映（親が editTarget を新しいオブジェクトに差し替えるたびに発火）。
+  useEffect(() => {
+    if (!editTarget) return;
+    setYearMonth(editTarget.yearMonth);
+    setPriceMan(yenToManYen(editTarget.unitPrice));
+    setFormError(null);
+  }, [editTarget]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    setFormError(null);
-    if (priceMan == null || !Number.isFinite(priceMan) || priceMan <= 0) {
-      setFormError("単価を正しく入力してください（万円単位）。");
+    const message = validateManYenPrice(priceMan);
+    if (message) {
+      setFormError(message);
       return;
     }
+    setFormError(null);
     setSaving(true);
     try {
-      await api.savePrice(yearMonth, manYenToYen(priceMan));
+      await api.savePrice(yearMonth, manYenToYen(priceMan as number));
       setPriceMan(null);
       await reload();
     } catch (err) {
@@ -127,10 +137,10 @@ export const SinglePriceForm = forwardRef<
       </p>
     </div>
   );
-});
+}
 
 /** 一括入力フォーム（連続した月に同じ単価をまとめて入れる）。 */
-export function BulkPriceForm({ reload }: { reload: () => Promise<void> }) {
+function BulkPriceForm({ reload }: { reload: () => Promise<void> }) {
   const [bulkFrom, setBulkFrom] = useState(currentYearMonth());
   const [bulkTo, setBulkTo] = useState(currentYearMonth());
   const [bulkPriceMan, setBulkPriceMan] = useState<number | null>(null);
@@ -160,17 +170,14 @@ export function BulkPriceForm({ reload }: { reload: () => Promise<void> }) {
       );
       return;
     }
-    if (
-      bulkPriceMan == null ||
-      !Number.isFinite(bulkPriceMan) ||
-      bulkPriceMan <= 0
-    ) {
-      setBulkError("単価を正しく入力してください（万円単位）。");
+    const priceMessage = validateManYenPrice(bulkPriceMan);
+    if (priceMessage) {
+      setBulkError(priceMessage);
       return;
     }
     setBulkSaving(true);
     try {
-      const unitPrice = manYenToYen(bulkPriceMan);
+      const unitPrice = manYenToYen(bulkPriceMan as number);
       await api.savePricesBulk(
         bulkMonths.map((ym) => ({ yearMonth: ym, unitPrice })),
       );
@@ -253,38 +260,41 @@ export function BulkPriceForm({ reload }: { reload: () => Promise<void> }) {
 
 /**
  * 単発入力・一括入力をタブで切り替える単価入力 UI。
- * forwardRef で {@link SinglePriceFormHandle} を公開し、外部から「単発入力タブへ
- * 切り替えて編集対象を流し込む」操作（既存月の編集）に対応する。
+ *
+ * タブの選択状態（`tab` / `onTabChange`）と既存月の編集対象（`editTarget`）は
+ * 制御 props として親が所有できる。省略時は内部 state で自走する（オンボーディング等、
+ * 編集連携が不要な場面ではそのまま `<PriceInputTabs reload={reload} />` で使える）。
  */
-export const PriceInputTabs = forwardRef<
-  SinglePriceFormHandle,
-  { reload: () => Promise<void> }
->(function PriceInputTabs({ reload }, ref) {
-  const [tab, setTab] = useState<string>("single");
-  const singleRef = useRef<SinglePriceFormHandle>(null);
-
-  useImperativeHandle(ref, () => ({
-    setEdit: (ym: string, yen: number) => {
-      setTab("single");
-      singleRef.current?.setEdit(ym, yen);
-    },
-  }));
+export function PriceInputTabs({
+  reload,
+  tab: tabProp,
+  onTabChange,
+  editTarget,
+}: {
+  reload: () => Promise<void>;
+  tab?: PriceTab;
+  onTabChange?: (tab: PriceTab) => void;
+  editTarget?: PriceEditTarget | null;
+}) {
+  const [internalTab, setInternalTab] = useState<PriceTab>("single");
+  const tab = tabProp ?? internalTab;
+  const setTab = onTabChange ?? setInternalTab;
 
   return (
     <Tabs
       selectedKey={tab}
-      onSelectionChange={(key) => setTab(String(key))}
+      onSelectionChange={(key) => setTab(String(key) as PriceTab)}
     >
       <Tabs.List aria-label="単価の入力方法">
         <Tabs.Tab id="single">単発入力</Tabs.Tab>
         <Tabs.Tab id="bulk">一括入力</Tabs.Tab>
       </Tabs.List>
       <Tabs.Panel id="single" className="pt-4">
-        <SinglePriceForm ref={singleRef} reload={reload} />
+        <SinglePriceForm reload={reload} editTarget={editTarget} />
       </Tabs.Panel>
       <Tabs.Panel id="bulk" className="pt-4">
         <BulkPriceForm reload={reload} />
       </Tabs.Panel>
     </Tabs>
   );
-});
+}

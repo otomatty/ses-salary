@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Alert, Button, Card } from "@heroui/react";
 import type { DashboardResponse } from "@shared/types";
 import { formatManYen, formatYen } from "@shared/calc";
 import {
   PriceInputTabs,
-  type SinglePriceFormHandle,
+  type PriceEditTarget,
+  type PriceTab,
 } from "../components/PriceForms";
 import { api } from "../api";
 
@@ -18,9 +19,10 @@ export function Prices({
   reload: () => Promise<void>;
   error: string | null;
 }) {
-  // 単発入力・一括入力をタブで切り替える。既存月の「編集」はこのハンドル経由で
-  // 単発入力タブへ切り替えてフォームに値を流し込む。
-  const inputRef = useRef<SinglePriceFormHandle>(null);
+  // 単発入力・一括入力のタブ状態と、既存月の「編集」対象を親（このページ）で所有する。
+  // 「編集」を押すと単発入力タブへ切り替え、対象を流し込む（PriceInputTabs は制御コンポーネント）。
+  const [tab, setTab] = useState<PriceTab>("single");
+  const [editTarget, setEditTarget] = useState<PriceEditTarget | null>(null);
   const [listError, setListError] = useState<string | null>(null);
 
   const remove = async (id: string) => {
@@ -32,6 +34,11 @@ export function Prices({
     } catch (err) {
       setListError(err instanceof Error ? err.message : "削除に失敗しました");
     }
+  };
+
+  const editExisting = (yearMonth: string, unitPrice: number) => {
+    setTab("single");
+    setEditTarget({ yearMonth, unitPrice });
   };
 
   return (
@@ -53,7 +60,12 @@ export function Prices({
           </Card.Description>
         </Card.Header>
         <Card.Content>
-          <PriceInputTabs ref={inputRef} reload={reload} />
+          <PriceInputTabs
+            reload={reload}
+            tab={tab}
+            onTabChange={setTab}
+            editTarget={editTarget}
+          />
         </Card.Content>
       </Card>
 
@@ -98,9 +110,7 @@ export function Prices({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onPress={() =>
-                          inputRef.current?.setEdit(p.yearMonth, p.unitPrice)
-                        }
+                        onPress={() => editExisting(p.yearMonth, p.unitPrice)}
                       >
                         編集
                       </Button>
