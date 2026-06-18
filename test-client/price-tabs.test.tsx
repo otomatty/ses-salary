@@ -1,10 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { currentYearMonth } from "@shared/periods";
 import {
   PriceInputTabs,
   validateManYenPrice,
 } from "../src/client/components/PriceForms";
+
+// 月境界でのフレークを避けるため「現在年月」を固定する（描画時と検証時で月がズレない）。
+const FIXED_YM = "2026-05";
+
+vi.mock("@shared/periods", async () => {
+  const actual =
+    await vi.importActual<typeof import("@shared/periods")>("@shared/periods");
+  return { ...actual, currentYearMonth: () => FIXED_YM };
+});
 
 vi.mock("../src/client/api", () => ({
   api: {
@@ -81,7 +89,7 @@ describe("PriceInputTabs（単発/一括の切り替え）", () => {
 
     const { api } = await import("../src/client/api");
     await waitFor(() => expect(api.savePrice).toHaveBeenCalledTimes(1));
-    expect(api.savePrice).toHaveBeenCalledWith(currentYearMonth(), 750000);
-    expect(reload).toHaveBeenCalled();
+    expect(api.savePrice).toHaveBeenCalledWith(FIXED_YM, 750000);
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
   });
 });
