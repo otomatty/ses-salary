@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ApiUser, DashboardResponse } from "@shared/types";
 import { api } from "./api";
+import { Spinner } from "@heroui/react";
 import { useRoute } from "./router";
-import { Spinner } from "./components/ui";
 import { Login } from "./pages/Login";
 import { Layout } from "./pages/Layout";
 import { Home } from "./pages/Home";
@@ -42,13 +42,17 @@ export function App() {
     if (user) reload();
   }, [user, reload]);
 
-  if (!authChecked) return <Spinner />;
+  if (!authChecked) return <div className="flex justify-center py-16">
+          <Spinner />
+        </div>;
   if (!user) return <Login onLoggedIn={(u) => setUser(u)} />;
 
   return (
     <Layout user={user} route={route} onLogout={() => setUser(null)}>
       {!dashboard ? (
-        <Spinner />
+        <div className="flex justify-center py-16">
+          <Spinner />
+        </div>
       ) : route === "prices" ? (
         <Prices dashboard={dashboard} reload={reload} error={dashError} />
       ) : route === "detail" ? (

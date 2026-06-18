@@ -1,6 +1,6 @@
+import { Chip } from "@heroui/react";
 import type { SalaryStatus } from "@shared/calc";
 import { guidanceForStatus } from "@shared/guidance";
-import { Badge } from "./ui";
 
 /** 給与計算結果の status に応じたバッジ（文言は guidance から導出）。 */
 export function StatusBadge({
@@ -14,10 +14,14 @@ export function StatusBadge({
   const g = guidanceForStatus(status);
   if (g) {
     return (
-      <Badge tone={status === "consult" ? "amber" : "indigo"}>{g.badge}</Badge>
+      <Chip color={status === "consult" ? "warning" : "accent"} variant="soft">
+        {g.badge}
+      </Chip>
     );
   }
   return (
-    <Badge tone="green">{bandCode ? `${bandCode} 帯` : "通常計算"}</Badge>
+    <Chip color="success" variant="soft">
+      {bandCode ? `${bandCode} 帯` : "通常計算"}
+    </Chip>
   );
 }

@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
+import { Alert, Card, Chip } from "@heroui/react";
 import type { SalaryResult } from "@shared/periods";
 import { formatYen, formatRate } from "@shared/calc";
 import { guidanceForStatus } from "@shared/guidance";
-import { Card } from "./ui";
 import { StatusBadge } from "./StatusBadge";
 import { StatusGuidance } from "./StatusGuidance";
 
@@ -22,87 +22,97 @@ export function SalaryBreakdownCard({
 
   return (
     <Card>
-      <div className="mb-4 flex items-center justify-between">
+      <Card.Header className="flex flex-row items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-slate-500">{title}</p>
-          <p className="text-xs text-slate-400">{result.periodLabel} 適用</p>
+          <Card.Title className="text-sm">{title}</Card.Title>
+          <Card.Description className="text-xs">
+            {result.periodLabel} 適用
+          </Card.Description>
         </div>
         <StatusBadge status={b.status} />
-      </div>
+      </Card.Header>
 
-      {/* 給与額（主役） */}
-      <div className="mb-5">
-        {b.salary === null ? (
-          <p className="text-3xl font-bold text-amber-600">
-            {guidance?.badge ?? "—"}
-          </p>
-        ) : (
-          <p className="text-3xl font-bold text-slate-900">
-            {formatYen(b.salary)}
-            <span className="ml-1 text-base font-normal text-slate-500">円</span>
-          </p>
-        )}
-        <p className="text-xs text-slate-400">総支給（額面）</p>
-      </div>
-
-      {/* 内訳 */}
-      <dl className="space-y-2 text-sm">
-        <Row label="対象3ヶ月">
-          <div className="flex flex-wrap gap-1.5">
-            {b.months.map((m) => (
-              <span
-                key={m.yearMonth}
-                className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
-              >
-                {m.yearMonth}: {formatYen(m.unitPrice)}
+      <Card.Content>
+        {/* 給与額（主役） */}
+        <div className="mb-5">
+          {b.salary === null ? (
+            <p className="text-3xl font-bold text-warning">
+              {guidance?.badge ?? "—"}
+            </p>
+          ) : (
+            <p className="text-3xl font-bold">
+              {formatYen(b.salary)}
+              <span className="text-muted ml-1 text-base font-normal">
+                円
               </span>
-            ))}
-          </div>
-        </Row>
-        <Row label="平均単価">{formatYen(b.avgUnitPrice)} 円</Row>
-        <Row label="判定された帯">{b.band.label}</Row>
-        <Row label="評価ランク">
-          {b.status === "fixed" || b.band.kind === "single"
-            ? "—（不問）"
-            : result.rankProvisional
-              ? `ランク ${b.rank}（暫定）`
-              : `ランク ${b.rank}`}
-        </Row>
-        <Row label="還元率">{b.rate === null ? "—" : formatRate(b.rate)}</Row>
-        <Row label="計算式">
-          <code className="rounded bg-slate-900 px-2 py-1 text-xs text-slate-100">
-            {b.formula}
-          </code>
-        </Row>
-      </dl>
-
-      {guidance ? (
-        <div className="mt-4">
-          <StatusGuidance status={b.status} />
+            </p>
+          )}
+          <p className="text-muted text-xs">総支給（額面）</p>
         </div>
-      ) : (
-        b.note && (
-          <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-            {b.note}
-          </p>
-        )
-      )}
 
-      {/* 評価ランクが暫定（未設定）で、かつランクが計算に影響する帯のときに明示する（PRD §12.3） */}
-      {result.rankProvisional && b.band.kind === "rank" && (
-        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          評価ランクが未設定のため、暫定的にランク1で計算しています。設定画面でランクを登録すると、この暫定表示は消えます。
-        </p>
-      )}
+        {/* 内訳 */}
+        <dl className="space-y-2 text-sm">
+          <Row label="対象3ヶ月">
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {b.months.map((m) => (
+                <Chip key={m.yearMonth} size="sm" variant="soft">
+                  {m.yearMonth}: {formatYen(m.unitPrice)}
+                </Chip>
+              ))}
+            </div>
+          </Row>
+          <Row label="平均単価">{formatYen(b.avgUnitPrice)} 円</Row>
+          <Row label="判定された帯">{b.band.label}</Row>
+          <Row label="評価ランク">
+            {b.status === "fixed" || b.band.kind === "single"
+              ? "—（不問）"
+              : result.rankProvisional
+                ? `ランク ${b.rank}（暫定）`
+                : `ランク ${b.rank}`}
+          </Row>
+          <Row label="還元率">
+            {b.rate === null ? "—" : formatRate(b.rate)}
+          </Row>
+          <Row label="計算式">
+            <code className="bg-foreground text-background rounded px-2 py-1 text-xs">
+              {b.formula}
+            </code>
+          </Row>
+        </dl>
+
+        {guidance ? (
+          <div className="mt-4">
+            <StatusGuidance status={b.status} />
+          </div>
+        ) : (
+          b.note && (
+            <p className="bg-surface-secondary text-muted mt-4 rounded-lg px-3 py-2 text-xs">
+              {b.note}
+            </p>
+          )
+        )}
+
+        {/* 評価ランクが暫定（未設定）で、かつランクが計算に影響する帯のときに明示する（PRD §12.3） */}
+        {result.rankProvisional && b.band.kind === "rank" && (
+          <Alert status="warning" className="mt-3">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Description>
+                評価ランクが未設定のため、暫定的にランク1で計算しています。設定画面でランクを登録すると、この暫定表示は消えます。
+              </Alert.Description>
+            </Alert.Content>
+          </Alert>
+        )}
+      </Card.Content>
     </Card>
   );
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-2">
-      <dt className="shrink-0 text-slate-500">{label}</dt>
-      <dd className="text-right font-medium text-slate-800">{children}</dd>
+    <div className="border-border flex items-start justify-between gap-4 border-b pb-2">
+      <dt className="text-muted shrink-0">{label}</dt>
+      <dd className="text-right font-medium">{children}</dd>
     </div>
   );
 }

@@ -18,7 +18,9 @@
     "test:workers": "vitest run --project workers"
   },
   "dependencies": {
+    "@heroui/react": "^3.2.1",
     "drizzle-orm": "^0.38.3",
+    "framer-motion": "^12.40.0",
     "hono": "^4.6.16",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

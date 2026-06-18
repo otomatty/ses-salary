@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { Alert, Button, Card, Separator } from "@heroui/react";
 import type { ApiUser } from "@shared/types";
 import { api } from "../api";
-import { Button, Card, ErrorBanner } from "../components/ui";
 
 /** ログイン画面（PRD §8 画面1）。Google SSO。開発時は簡易ログインも可能。 */
 export function Login({ onLoggedIn }: { onLoggedIn: (u: ApiUser) => void }) {
@@ -25,46 +25,54 @@ export function Login({ onLoggedIn }: { onLoggedIn: (u: ApiUser) => void }) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-50 to-indigo-50 px-4">
+    <div className="bg-background flex min-h-screen items-center justify-center px-4">
       <Card className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <h1 className="text-xl font-bold text-slate-900">エンジニア給与計算</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            単価連動型の給与を計算・予測・可視化
-          </p>
-        </div>
+        <Card.Header className="text-center">
+          <Card.Title>エンジニア給与計算</Card.Title>
+          <Card.Description>単価連動型の給与を計算・予測・可視化</Card.Description>
+        </Card.Header>
 
-        {error && (
-          <div className="mb-4">
-            <ErrorBanner message={error} />
-          </div>
-        )}
+        <Card.Content className="space-y-4">
+          {error && (
+            <Alert status="danger">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Description>{error}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
 
-        <a href="/auth/login" className="block">
-          <Button className="w-full" variant="primary">
+          <Button
+            fullWidth
+            variant="primary"
+            onPress={() => {
+              window.location.href = "/auth/login";
+            }}
+          >
             Google でログイン
           </Button>
-        </a>
 
-        {showDevLogin && (
-          <div className="mt-4 border-t border-slate-100 pt-4">
-            <Button
-              className="w-full"
-              variant="secondary"
-              onClick={handleDevLogin}
-              disabled={loading}
-            >
-              {loading ? "ログイン中…" : "開発用ログイン"}
-            </Button>
-            <p className="mt-2 text-center text-xs text-slate-400">
-              ローカル開発専用（本番では表示されません）
-            </p>
-          </div>
-        )}
+          {showDevLogin && (
+            <div className="space-y-2">
+              <Separator />
+              <Button
+                fullWidth
+                variant="secondary"
+                onPress={handleDevLogin}
+                isDisabled={loading}
+              >
+                {loading ? "ログイン中…" : "開発用ログイン"}
+              </Button>
+              <p className="text-muted text-center text-xs">
+                ローカル開発専用（本番では表示されません）
+              </p>
+            </div>
+          )}
 
-        <p className="mt-6 text-center text-xs text-slate-400">
-          自分のデータのみ閲覧・編集できます。
-        </p>
+          <p className="text-muted text-center text-xs">
+            自分のデータのみ閲覧・編集できます。
+          </p>
+        </Card.Content>
       </Card>
     </div>
   );

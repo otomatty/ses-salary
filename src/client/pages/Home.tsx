@@ -1,14 +1,8 @@
+import { Alert, Button, Card } from "@heroui/react";
 import type { DashboardResponse } from "@shared/types";
 import { formatYen } from "@shared/calc";
 import { guidanceForStatus } from "@shared/guidance";
 import type { SalaryResult } from "@shared/periods";
-import {
-  Card,
-  SectionTitle,
-  Button,
-  ErrorBanner,
-  NoticeBanner,
-} from "../components/ui";
 import { LazyTrendChart } from "../components/LazyTrendChart";
 import { StatusBadge } from "../components/StatusBadge";
 import { StatusGuidance } from "../components/StatusGuidance";
@@ -24,33 +18,49 @@ export function Home({
 }) {
   return (
     <div className="space-y-6">
-      {error && <ErrorBanner message={error} />}
+      {error && (
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description>{error}</Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
 
       {/* 評価ランク未設定時の明示＋設定画面への誘導（PRD §12.3） */}
       {dashboard.rankProvisional && (
-        <NoticeBanner>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <Alert status="warning">
+          <Alert.Indicator />
+          <Alert.Content className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-medium">評価ランク未設定（暫定ランク1で計算中）</p>
-              <p className="mt-0.5 text-xs text-amber-700">
+              <Alert.Title>評価ランク未設定（暫定ランク1で計算中）</Alert.Title>
+              <Alert.Description>
                 人事評価で決まる評価ランクがまだ設定されていません。正確な給与計算のため、設定画面でランクを登録してください。
-              </p>
+              </Alert.Description>
             </div>
             <Button
               variant="secondary"
+              size="sm"
               className="shrink-0"
-              onClick={() => navigate("settings")}
+              onPress={() => navigate("settings")}
             >
               評価ランクを設定 →
             </Button>
-          </div>
-        </NoticeBanner>
+          </Alert.Content>
+        </Alert>
       )}
 
       {/* 推移グラフ（主役） */}
       <Card>
-        <SectionTitle>単価・給与の推移</SectionTitle>
-        <LazyTrendChart prices={dashboard.prices} history={dashboard.history} />
+        <Card.Header>
+          <Card.Title className="text-sm">単価・給与の推移</Card.Title>
+        </Card.Header>
+        <Card.Content>
+          <LazyTrendChart
+            prices={dashboard.prices}
+            history={dashboard.history}
+          />
+        </Card.Content>
       </Card>
 
       {/* 今期・来期サマリ */}
@@ -109,58 +119,57 @@ function SummaryCard({
   const guidance = result ? guidanceForStatus(result.breakdown.status) : null;
 
   return (
-    <Card className={highlight ? "ring-2 ring-indigo-100" : ""}>
-      <div className="mb-2 flex items-center justify-between">
-        <SectionTitle>{label}</SectionTitle>
+    <Card className={highlight ? "ring-accent/40 ring-2" : ""}>
+      <Card.Header className="flex flex-row items-center justify-between">
+        <Card.Title className="text-sm">{label}</Card.Title>
         {result && (
           <StatusBadge
             status={result.breakdown.status}
             bandCode={result.breakdown.band.code}
           />
         )}
-      </div>
+      </Card.Header>
 
-      {!result ? (
-        <p className="text-sm text-slate-400">{emptyText}</p>
-      ) : (
-        <div>
-          {result.breakdown.salary === null ? (
-            <p className="text-2xl font-bold text-amber-600">
-              {guidance?.badge ?? "—"}
-            </p>
-          ) : (
-            <p className="text-3xl font-bold text-slate-900">
-              {formatYen(result.breakdown.salary)}
-              <span className="ml-1 text-base font-normal text-slate-500">円</span>
-            </p>
-          )}
-          <p className="mt-1 text-xs text-slate-400">
-            {result.periodLabel} 適用
-            {result.breakdown.salary !== null && (
-              <>
-                {" "}
-                ・ 平均単価 {formatYen(result.breakdown.avgUnitPrice)} 円
-              </>
-            )}
-          </p>
-          {result.rankProvisional &&
-            result.breakdown.band.kind === "rank" && (
-              <p className="mt-1 text-xs font-medium text-amber-600">
-                暫定ランク1で計算中
+      <Card.Content>
+        {!result ? (
+          <p className="text-muted text-sm">{emptyText}</p>
+        ) : (
+          <div>
+            {result.breakdown.salary === null ? (
+              <p className="text-warning text-2xl font-bold">
+                {guidance?.badge ?? "—"}
+              </p>
+            ) : (
+              <p className="text-3xl font-bold">
+                {formatYen(result.breakdown.salary)}
+                <span className="text-muted ml-1 text-base font-normal">円</span>
               </p>
             )}
-          {guidance && (
+            <p className="text-muted mt-1 text-xs">
+              {result.periodLabel} 適用
+              {result.breakdown.salary !== null && (
+                <> ・ 平均単価 {formatYen(result.breakdown.avgUnitPrice)} 円</>
+              )}
+            </p>
+            {result.rankProvisional &&
+              result.breakdown.band.kind === "rank" && (
+                <p className="text-warning mt-1 text-xs font-medium">
+                  暫定ランク1で計算中
+                </p>
+              )}
+            {guidance && (
+              <div className="mt-3">
+                <StatusGuidance status={result.breakdown.status} compact />
+              </div>
+            )}
             <div className="mt-3">
-              <StatusGuidance status={result.breakdown.status} compact />
+              <Button variant="ghost" size="sm" onPress={() => navigate("detail")}>
+                計算根拠を見る →
+              </Button>
             </div>
-          )}
-          <div className="mt-3">
-            <Button variant="ghost" onClick={() => navigate("detail")}>
-              計算根拠を見る →
-            </Button>
           </div>
-        </div>
-      )}
+        )}
+      </Card.Content>
     </Card>
   );
 }
@@ -177,10 +186,10 @@ function NavTile({
   return (
     <button
       onClick={onClick}
-      className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-indigo-300 hover:shadow"
+      className="border-border bg-surface hover:border-accent rounded-xl border p-4 text-left shadow-sm transition hover:shadow"
     >
-      <p className="font-semibold text-slate-800">{title}</p>
-      <p className="mt-1 text-xs text-slate-500">{desc}</p>
+      <p className="font-semibold">{title}</p>
+      <p className="text-muted mt-1 text-xs">{desc}</p>
     </button>
   );
 }

@@ -1,21 +1,11 @@
+import { Alert } from "@heroui/react";
 import type { SalaryStatus } from "@shared/calc";
 import { guidanceForStatus } from "@shared/guidance";
 
-const TONE = {
-  consult: {
-    wrap: "border-amber-200 bg-amber-50",
-    heading: "text-amber-800",
-    body: "text-amber-700",
-    actionWrap: "border-amber-200 bg-white/70",
-    actionText: "text-amber-800",
-  },
-  fixed: {
-    wrap: "border-indigo-200 bg-indigo-50",
-    heading: "text-indigo-800",
-    body: "text-indigo-700",
-    actionWrap: "border-indigo-200 bg-white/70",
-    actionText: "text-indigo-800",
-  },
+/** status -> Alert のステータス色。consult は警告、fixed はアクセント。 */
+const STATUS_TONE = {
+  consult: "warning",
+  fixed: "accent",
 } as const;
 
 /**
@@ -37,25 +27,21 @@ export function StatusGuidance({
   const g = guidanceForStatus(status);
   if (!g) return null;
 
-  const tone = TONE[status];
-
   return (
-    <div
-      className={`rounded-lg border px-3 py-2.5 ${tone.wrap}`}
-      role="note"
-    >
-      <p className={`text-xs font-semibold ${tone.heading}`}>{g.headline}</p>
-      <p className={`mt-1 text-xs leading-relaxed ${tone.body}`}>{g.reason}</p>
-      {!compact && (
-        <p
-          className={`mt-2 rounded-md border px-2.5 py-1.5 text-xs font-medium leading-relaxed ${tone.actionWrap} ${tone.actionText}`}
-        >
-          <span className="mr-1" aria-hidden="true">
-            →
-          </span>
-          {g.nextAction}
-        </p>
-      )}
-    </div>
+    <Alert status={STATUS_TONE[status]}>
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Title>{g.headline}</Alert.Title>
+        <Alert.Description>{g.reason}</Alert.Description>
+        {!compact && (
+          <p className="mt-2 rounded-md border border-current/20 bg-surface/60 px-2.5 py-1.5 text-xs font-medium leading-relaxed">
+            <span className="mr-1" aria-hidden="true">
+              →
+            </span>
+            {g.nextAction}
+          </p>
+        )}
+      </Alert.Content>
+    </Alert>
   );
 }
