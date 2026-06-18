@@ -71,9 +71,11 @@ export function yenToManYen(yen: number): number {
  */
 export function formatManYen(yen: number): string {
   const man = yen / MAN_YEN;
-  const text = Number.isInteger(man)
-    ? String(man)
-    : man.toLocaleString("ja-JP", { maximumFractionDigits: 4 });
+  // 整数・小数いずれも同じ書式（千の位区切りあり）にそろえる。
+  const text = man.toLocaleString("ja-JP", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  });
   return `${text}万円`;
 }
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { request, postJson, login } from "./helpers";
+import { BULK_MAX_MONTHS } from "@shared/periods";
 
 describe("/api/prices", () => {
   let cookie: string;
@@ -166,9 +167,9 @@ describe("/api/prices", () => {
       expect(res.status).toBe(400);
     });
 
-    it("120ヶ月を超える件数は 400（切り捨てず拒否）", async () => {
-      // 2020-01 から 121ヶ月分（上限 120 を 1 超過）。
-      const items = Array.from({ length: 121 }, (_, i) => {
+    it("上限ヶ月数を超える件数は 400（切り捨てず拒否）", async () => {
+      // 2020-01 から上限 +1 ヶ月分（将来 BULK_MAX_MONTHS が変わっても追従）。
+      const items = Array.from({ length: BULK_MAX_MONTHS + 1 }, (_, i) => {
         const total = 2020 * 12 + i;
         const y = Math.floor(total / 12);
         const m = (total % 12) + 1;
