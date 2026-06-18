@@ -3,6 +3,7 @@
 import type { Rank } from "./rateTable";
 import type { SalaryResult } from "./periods";
 import type { SalaryStatus } from "./calc";
+import type { EmploymentTypeKey, MonthlyIncomeBreakdown } from "./income";
 
 export interface ApiUser {
   id: string;
@@ -21,6 +22,35 @@ export interface RankHistoryDTO {
   effectiveFrom: string; // "YYYY-MM"
   rank: Rank;
 }
+
+/** 特別手当の履歴エントリ（適用開始月ごと。amount 0 で廃止）。 */
+export interface AllowanceDTO {
+  id: string;
+  name: string;
+  effectiveFrom: string; // "YYYY-MM"
+  amount: number; // 円
+  includeInOvertimeBase: boolean;
+}
+
+/** 月次の残業時間（区分別）。 */
+export interface MonthlyOvertimeDTO {
+  id: string;
+  yearMonth: string; // "YYYY-MM"
+  normalHours: number;
+  nightHours: number;
+  holidayHours: number;
+}
+
+/** 雇用形態・所定労働時間などの本人設定。 */
+export interface UserSettingsDTO {
+  employmentType: EmploymentTypeKey;
+  monthlyStandardHours: number;
+  /** みなし残業時間のオーバーライド（null なら雇用形態から導出） */
+  deemedOvertimeHours: number | null;
+}
+
+/** 月の額面実支給見込み（基本給 + 手当 + 残業）の内訳。 */
+export type MonthlyIncomeDTO = MonthlyIncomeBreakdown;
 
 /**
  * 永続化された給与計算結果スナップショット（PRD §9 / salary_results）。
@@ -64,6 +94,14 @@ export interface DashboardResponse {
   savedResults: SalaryResultDTO[];
   /** 来期計算に必要な月単価が不足している場合のメッセージ */
   nextPending: string | null;
+  /** 登録済みの特別手当（適用開始月の昇順） */
+  allowances: AllowanceDTO[];
+  /** 登録済みの月次残業時間（年月の昇順） */
+  overtime: MonthlyOvertimeDTO[];
+  /** 雇用形態・所定労働時間などの本人設定（未設定なら既定値） */
+  settings: UserSettingsDTO;
+  /** 当月（currentYearMonth）の月収内訳。基本給が算出不能なら null */
+  currentMonthIncome: MonthlyIncomeDTO | null;
 }
 
 export interface ApiError {

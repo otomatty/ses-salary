@@ -11,7 +11,11 @@ import {
 } from "@heroui/react";
 import type { DashboardResponse } from "@shared/types";
 import { currentYearMonth } from "@shared/periods";
+import { formatYen } from "@shared/calc";
+import { findEmploymentType } from "@shared/income";
 import { RankForm } from "../components/RankForm";
+import { AllowanceForm } from "../components/AllowanceForm";
+import { EmploymentForm } from "../components/EmploymentForm";
 import { api } from "../api";
 
 /** データ全削除の確認に入力させる語句。 */
@@ -26,6 +30,8 @@ export function Settings({
   reload: () => Promise<void>;
 }) {
   const [error, setError] = useState<string | null>(null);
+  // 手当の削除エラーは手当カード内に表示する（error は削除モーダル内でのみ表示されるため）。
+  const [allowanceError, setAllowanceError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -59,6 +65,17 @@ export function Settings({
       await reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "削除に失敗しました");
+    }
+  };
+
+  const removeAllowance = async (id: string) => {
+    if (!confirm("この手当の設定を削除しますか？")) return;
+    setAllowanceError(null);
+    try {
+      await api.deleteAllowance(id);
+      await reload();
+    } catch (e) {
+      setAllowanceError(e instanceof Error ? e.message : "削除に失敗しました");
     }
   };
 
@@ -146,13 +163,102 @@ export function Settings({
         </Card>
       )}
 
+      <Card>
+        <Card.Header>
+          <Card.Title className="text-sm">雇用形態・所定労働時間</Card.Title>
+          <Card.Description className="text-xs">
+            残業代の算出に使います（残業単価の分母＝月平均所定労働時間、みなし残業時間＝雇用形態）。
+          </Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <EmploymentForm settings={dashboard.settings} reload={reload} />
+        </Card.Content>
+      </Card>
+
+      <Card>
+        <Card.Header>
+          <Card.Title className="text-sm">特別手当の追加</Card.Title>
+          <Card.Description className="text-xs">
+            役職手当・職務手当・資格手当などを適用開始月付きで登録します。登録した月以降に継続適用されます。
+          </Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <AllowanceForm reload={reload} />
+        </Card.Content>
+      </Card>
+
+      {dashboard.allowances.length > 0 && (
+        <Card>
+          <Card.Header>
+            <Card.Title className="text-sm">手当の履歴</Card.Title>
+          </Card.Header>
+          <Card.Content className="space-y-3">
+            {allowanceError && (
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Description>{allowanceError}</Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
+            <ul className="divide-border divide-y">
+              {[...dashboard.allowances]
+                .sort((a, b) =>
+                  a.effectiveFrom < b.effectiveFrom
+                    ? 1
+                    : a.effectiveFrom > b.effectiveFrom
+                      ? -1
+                      : a.name < b.name
+                        ? -1
+                        : 1,
+                )
+                .map((a) => (
+                  <li
+                    key={a.id}
+                    className="flex items-center justify-between py-2.5 text-sm"
+                  >
+                    <div>
+                      <span className="font-medium">{a.effectiveFrom} 〜</span>
+                      <span className="ml-3 font-medium">{a.name}</span>
+                      <span className="text-muted ml-3">
+                        {a.amount === 0
+                          ? "廃止（0円）"
+                          : `${formatYen(a.amount)} 円`}
+                      </span>
+                      {a.includeInOvertimeBase && (
+                        <Chip color="accent" variant="soft" size="sm" className="ml-3">
+                          残業基礎
+                        </Chip>
+                      )}
+                    </div>
+                    <Button
+                      variant="danger-soft"
+                      size="sm"
+                      onPress={() => removeAllowance(a.id)}
+                    >
+                      削除
+                    </Button>
+                  </li>
+                ))}
+            </ul>
+            <p className="text-muted mt-3 text-xs">
+              現在の雇用形態は{" "}
+              <strong className="text-foreground">
+                {findEmploymentType(dashboard.settings.employmentType).label}
+              </strong>{" "}
+              です。「残業基礎」の手当（職務手当など）は残業単価の算出に算入されます。
+            </p>
+          </Card.Content>
+        </Card>
+      )}
+
       <Card className="border-danger/40 border">
         <Card.Header>
           <Card.Title className="text-sm">危険な操作</Card.Title>
         </Card.Header>
         <Card.Content>
           <p className="text-muted text-sm">
-            月単価・評価ランク履歴・給与スナップショットをすべて削除します。
+            月単価・評価ランク履歴・給与スナップショット・残業時間・手当・設定をすべて削除します。
             アカウントは残り、ログインしたまま空の状態から再入力できます。この操作は取り消せません。
           </p>
           <Modal isOpen={deleteOpen} onOpenChange={handleDeleteOpenChange}>

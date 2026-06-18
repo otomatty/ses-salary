@@ -1,5 +1,5 @@
 import { Alert, Button, Card } from "@heroui/react";
-import type { DashboardResponse } from "@shared/types";
+import type { DashboardResponse, MonthlyIncomeDTO } from "@shared/types";
 import { formatYen } from "@shared/calc";
 import { guidanceForStatus } from "@shared/guidance";
 import type { SalaryResult } from "@shared/periods";
@@ -71,6 +71,7 @@ export function Home({
           label="今期の給与"
           result={dashboard.current}
           emptyText="今期に適用される給与を計算するには、前四半期（3ヶ月）の単価が必要です。"
+          income={dashboard.currentMonthIncome}
         />
         <SummaryCard
           label="来期の給与（予測）"
@@ -113,11 +114,14 @@ function SummaryCard({
   result,
   emptyText,
   highlight = false,
+  income = null,
 }: {
   label: string;
   result: SalaryResult | null;
   emptyText: string;
   highlight?: boolean;
+  /** 当月の月収内訳（基本給 + 手当 + 残業）。今期カードでのみ渡す。 */
+  income?: MonthlyIncomeDTO | null;
 }) {
   const navigate = useNavigate();
   const guidance = result ? guidanceForStatus(result.breakdown.status) : null;
@@ -160,6 +164,31 @@ function SummaryCard({
                 <p className="text-warning mt-1 text-xs font-medium">
                   暫定ランク1で計算中
                 </p>
+              )}
+
+            {/* 当月の実支給見込み（基本給 + 手当 + 残業）。手当・残業がある月のみ表示。 */}
+            {income &&
+              result.breakdown.salary !== null &&
+              (income.allowanceTotal > 0 || income.overtimePay > 0) && (
+                <div className="border-border mt-3 border-t pt-3">
+                  <p className="text-muted text-xs">実支給見込み（当月）</p>
+                  <p className="text-2xl font-bold">
+                    {formatYen(income.gross)}
+                    <span className="text-muted ml-1 text-sm font-normal">
+                      円
+                    </span>
+                  </p>
+                  <p className="text-muted mt-1 text-xs">
+                    基本給 {formatYen(income.baseSalary)}
+                    {income.allowanceTotal > 0 && (
+                      <> ＋ 手当 {formatYen(income.allowanceTotal)}</>
+                    )}
+                    {income.overtimePay > 0 && (
+                      <> ＋ 残業 {formatYen(income.overtimePay)}</>
+                    )}{" "}
+                    円
+                  </p>
+                </div>
               )}
             {guidance && (
               <div className="mt-3">

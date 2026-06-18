@@ -21,6 +21,14 @@ const dashboard: DashboardResponse = {
   history: [],
   savedResults: [],
   nextPending: null,
+  allowances: [],
+  overtime: [],
+  settings: {
+    employmentType: "fulltime_engineer",
+    monthlyStandardHours: 160,
+    deemedOvertimeHours: null,
+  },
+  currentMonthIncome: null,
 };
 
 const HEADING = "本当にすべてのデータを削除しますか？";

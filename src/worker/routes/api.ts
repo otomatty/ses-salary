@@ -24,14 +24,31 @@ import {
 } from "@shared/periods";
 import type { PricePoint, SalaryStatus } from "@shared/calc";
 import type { Rank } from "@shared/rateTable";
+import {
+  buildMonthlyIncome,
+  isEmploymentTypeKey,
+  DEFAULT_USER_SETTINGS,
+  type AllowanceEntry,
+  type OvertimeHours,
+  type UserSettings,
+} from "@shared/income";
 import type {
+  AllowanceDTO,
   DashboardResponse,
   MeResponse,
+  MonthlyOvertimeDTO,
   MonthlyPriceDTO,
   RankHistoryDTO,
   SalaryResultDTO,
+  UserSettingsDTO,
 } from "@shared/types";
-import type { MonthlyPriceRow, SalaryResultRow } from "../db/schema";
+import type {
+  AllowanceHistoryRow,
+  MonthlyOvertimeRow,
+  MonthlyPriceRow,
+  SalaryResultRow,
+  UserSettingsRow,
+} from "../db/schema";
 
 type AppEnv = { Bindings: Env; Variables: { userId: string } };
 
@@ -98,6 +115,77 @@ async function loadUserData(env: Env, userId: string) {
     .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? -1 : 1));
 
   return { priceDTOs, rankDTOs };
+}
+
+function toAllowanceDTO(r: AllowanceHistoryRow): AllowanceDTO {
+  return {
+    id: r.id,
+    name: r.name,
+    effectiveFrom: r.effectiveFrom,
+    amount: r.amount,
+    includeInOvertimeBase: r.includeInOvertimeBase === 1,
+  };
+}
+
+function toOvertimeDTO(r: MonthlyOvertimeRow): MonthlyOvertimeDTO {
+  return {
+    id: r.id,
+    yearMonth: r.yearMonth,
+    normalHours: r.normalHours,
+    nightHours: r.nightHours,
+    holidayHours: r.holidayHours,
+  };
+}
+
+function toSettingsDTO(r: UserSettingsRow | undefined): UserSettingsDTO {
+  if (!r) return { ...DEFAULT_USER_SETTINGS };
+  return {
+    employmentType: isEmploymentTypeKey(r.employmentType)
+      ? r.employmentType
+      : DEFAULT_USER_SETTINGS.employmentType,
+    monthlyStandardHours: r.monthlyStandardHours,
+    deemedOvertimeHours: r.deemedOvertimeHours,
+  };
+}
+
+/** 月収算出用の追加データ（手当・残業・設定）を取得する。 */
+async function loadIncomeData(env: Env, userId: string) {
+  const db = getDb(env.DB);
+  const [allowances, overtime, settingsRow] = await Promise.all([
+    db
+      .select()
+      .from(schema.allowanceHistory)
+      .where(eq(schema.allowanceHistory.userId, userId))
+      .all(),
+    db
+      .select()
+      .from(schema.monthlyOvertime)
+      .where(eq(schema.monthlyOvertime.userId, userId))
+      .all(),
+    db
+      .select()
+      .from(schema.userSettings)
+      .where(eq(schema.userSettings.userId, userId))
+      .get(),
+  ]);
+
+  const allowanceDTOs: AllowanceDTO[] = allowances
+    .map(toAllowanceDTO)
+    .sort((a, b) =>
+      a.effectiveFrom < b.effectiveFrom
+        ? -1
+        : a.effectiveFrom > b.effectiveFrom
+          ? 1
+          : a.name < b.name
+            ? -1
+            : 1,
+    );
+  const overtimeDTOs: MonthlyOvertimeDTO[] = overtime
+    .map(toOvertimeDTO)
+    .sort((a, b) => (a.yearMonth < b.yearMonth ? -1 : 1));
+  const settings = toSettingsDTO(settingsRow);
+
+  return { allowanceDTOs, overtimeDTOs, settings };
 }
 
 function toResultDTO(r: SalaryResultRow): SalaryResultDTO {
@@ -198,9 +286,10 @@ async function reconcileSnapshots(env: Env, userId: string): Promise<void> {
 // --- GET /api/dashboard ---
 apiApp.get("/api/dashboard", async (c) => {
   const userId = c.get("userId");
-  const [{ priceDTOs, rankDTOs }, savedResults] = await Promise.all([
+  const [{ priceDTOs, rankDTOs }, savedResults, incomeData] = await Promise.all([
     loadUserData(c.env, userId),
     loadSavedResults(c.env, userId),
+    loadIncomeData(c.env, userId),
   ]);
 
   const rankHistory: RankHistoryEntry[] = rankDTOs.map((r) => ({
@@ -239,6 +328,34 @@ apiApp.get("/api/dashboard", async (c) => {
 
   const history = buildSalaryHistory(pricePoints, rankHistory);
 
+  // 当月の月収内訳（基本給 + 手当 + 残業）。基本給は今期の四半期給与を当月分として使う。
+  const settings: UserSettings = incomeData.settings;
+  const allowanceHistory: AllowanceEntry[] = incomeData.allowanceDTOs.map(
+    (a) => ({
+      name: a.name,
+      effectiveFrom: a.effectiveFrom,
+      amount: a.amount,
+      includeInOvertimeBase: a.includeInOvertimeBase,
+    }),
+  );
+  const thisMonthOvertimeDTO = incomeData.overtimeDTOs.find(
+    (o) => o.yearMonth === thisMonth,
+  );
+  const thisMonthOvertime: OvertimeHours | null = thisMonthOvertimeDTO
+    ? {
+        normalHours: thisMonthOvertimeDTO.normalHours,
+        nightHours: thisMonthOvertimeDTO.nightHours,
+        holidayHours: thisMonthOvertimeDTO.holidayHours,
+      }
+    : null;
+  const currentMonthIncome = buildMonthlyIncome({
+    yearMonth: thisMonth,
+    baseSalary: current?.breakdown.salary ?? null,
+    settings,
+    allowanceHistory,
+    overtime: thisMonthOvertime,
+  });
+
   return c.json<DashboardResponse>({
     prices: priceDTOs,
     rankHistory: rankDTOs,
@@ -249,6 +366,10 @@ apiApp.get("/api/dashboard", async (c) => {
     history,
     savedResults,
     nextPending,
+    allowances: incomeData.allowanceDTOs,
+    overtime: incomeData.overtimeDTOs,
+    settings: incomeData.settings,
+    currentMonthIncome,
   });
 });
 
@@ -486,6 +607,235 @@ apiApp.delete("/api/rank/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// --- POST /api/allowances  (特別手当の設定: name × effective_from で upsert) ---
+apiApp.post("/api/allowances", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json().catch(() => null);
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const effectiveFrom = body?.effectiveFrom ?? currentYearMonth();
+  const amount = body?.amount;
+  const includeInOvertimeBase = body?.includeInOvertimeBase === true;
+
+  if (!name) {
+    return c.json({ error: "手当名を入力してください。" }, 400);
+  }
+  if (name.length > 50) {
+    return c.json({ error: "手当名は50文字以内で入力してください。" }, 400);
+  }
+  if (!isValidYearMonth(effectiveFrom)) {
+    return c.json({ error: "適用開始月の形式が不正です（YYYY-MM）。" }, 400);
+  }
+  if (
+    typeof amount !== "number" ||
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    amount > 100_000_000
+  ) {
+    return c.json({ error: "手当額は0以上の妥当な金額で入力してください。" }, 400);
+  }
+
+  const db = getDb(c.env.DB);
+  const includeFlag = includeInOvertimeBase ? 1 : 0;
+  const existing = await db
+    .select()
+    .from(schema.allowanceHistory)
+    .where(
+      and(
+        eq(schema.allowanceHistory.userId, userId),
+        eq(schema.allowanceHistory.name, name),
+        eq(schema.allowanceHistory.effectiveFrom, effectiveFrom),
+      ),
+    )
+    .get();
+
+  if (existing) {
+    await db
+      .update(schema.allowanceHistory)
+      .set({
+        amount: Math.round(amount),
+        includeInOvertimeBase: includeFlag,
+        updatedAt: Date.now(),
+      })
+      .where(eq(schema.allowanceHistory.id, existing.id))
+      .run();
+    return c.json({ allowance: toAllowanceDTO({ ...existing, amount: Math.round(amount), includeInOvertimeBase: includeFlag }) });
+  }
+
+  const row = {
+    id: newId(),
+    userId,
+    name,
+    effectiveFrom,
+    amount: Math.round(amount),
+    includeInOvertimeBase: includeFlag,
+    updatedAt: Date.now(),
+  };
+  await db.insert(schema.allowanceHistory).values(row).run();
+  return c.json({ allowance: toAllowanceDTO(row) }, 201);
+});
+
+// --- DELETE /api/allowances/:id ---
+apiApp.delete("/api/allowances/:id", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const db = getDb(c.env.DB);
+  await db
+    .delete(schema.allowanceHistory)
+    .where(
+      and(
+        eq(schema.allowanceHistory.id, id),
+        eq(schema.allowanceHistory.userId, userId),
+      ),
+    )
+    .run();
+  return c.json({ ok: true });
+});
+
+/** 残業時間（0以上の妥当な数値）か検証する。h 上限は安全のため 744（月の総時間）。 */
+function isValidHours(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 744;
+}
+
+// --- POST /api/overtime  (月次残業時間: year_month で upsert) ---
+apiApp.post("/api/overtime", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json().catch(() => null);
+  const yearMonth = body?.yearMonth;
+  const normalHours = body?.normalHours ?? 0;
+  const nightHours = body?.nightHours ?? 0;
+  const holidayHours = body?.holidayHours ?? 0;
+
+  if (!isValidYearMonth(yearMonth)) {
+    return c.json({ error: "年月の形式が不正です（YYYY-MM）。" }, 400);
+  }
+  if (
+    !isValidHours(normalHours) ||
+    !isValidHours(nightHours) ||
+    !isValidHours(holidayHours)
+  ) {
+    return c.json({ error: "残業時間は0以上の妥当な時間で入力してください。" }, 400);
+  }
+
+  const db = getDb(c.env.DB);
+  const now = Date.now();
+  const existing = await db
+    .select()
+    .from(schema.monthlyOvertime)
+    .where(
+      and(
+        eq(schema.monthlyOvertime.userId, userId),
+        eq(schema.monthlyOvertime.yearMonth, yearMonth),
+      ),
+    )
+    .get();
+
+  if (existing) {
+    await db
+      .update(schema.monthlyOvertime)
+      .set({ normalHours, nightHours, holidayHours, updatedAt: now })
+      .where(eq(schema.monthlyOvertime.id, existing.id))
+      .run();
+    return c.json({
+      overtime: toOvertimeDTO({
+        ...existing,
+        normalHours,
+        nightHours,
+        holidayHours,
+      }),
+    });
+  }
+
+  const row = {
+    id: newId(),
+    userId,
+    yearMonth,
+    normalHours,
+    nightHours,
+    holidayHours,
+    updatedAt: now,
+  };
+  await db.insert(schema.monthlyOvertime).values(row).run();
+  return c.json({ overtime: toOvertimeDTO(row) }, 201);
+});
+
+// --- DELETE /api/overtime/:id ---
+apiApp.delete("/api/overtime/:id", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const db = getDb(c.env.DB);
+  await db
+    .delete(schema.monthlyOvertime)
+    .where(
+      and(
+        eq(schema.monthlyOvertime.id, id),
+        eq(schema.monthlyOvertime.userId, userId),
+      ),
+    )
+    .run();
+  return c.json({ ok: true });
+});
+
+// --- POST /api/settings  (雇用形態・月平均所定労働時間: ユーザーごとに upsert) ---
+apiApp.post("/api/settings", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json().catch(() => null);
+  const employmentType = body?.employmentType;
+  const monthlyStandardHours = body?.monthlyStandardHours;
+  const deemedOvertimeHours = body?.deemedOvertimeHours ?? null;
+
+  if (!isEmploymentTypeKey(employmentType)) {
+    return c.json({ error: "雇用形態の指定が不正です。" }, 400);
+  }
+  if (
+    typeof monthlyStandardHours !== "number" ||
+    !Number.isFinite(monthlyStandardHours) ||
+    monthlyStandardHours <= 0 ||
+    monthlyStandardHours > 744
+  ) {
+    return c.json(
+      { error: "月平均所定労働時間は0より大きい妥当な時間で入力してください。" },
+      400,
+    );
+  }
+  if (
+    deemedOvertimeHours !== null &&
+    (typeof deemedOvertimeHours !== "number" ||
+      !Number.isFinite(deemedOvertimeHours) ||
+      deemedOvertimeHours < 0 ||
+      deemedOvertimeHours > 744)
+  ) {
+    return c.json(
+      { error: "みなし残業時間は0以上の妥当な時間で入力してください。" },
+      400,
+    );
+  }
+
+  const db = getDb(c.env.DB);
+  const now = Date.now();
+  await db
+    .insert(schema.userSettings)
+    .values({
+      userId,
+      employmentType,
+      monthlyStandardHours,
+      deemedOvertimeHours,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.userSettings.userId,
+      set: { employmentType, monthlyStandardHours, deemedOvertimeHours, updatedAt: now },
+    })
+    .run();
+
+  return c.json({
+    settings: {
+      employmentType,
+      monthlyStandardHours,
+      deemedOvertimeHours,
+    } satisfies UserSettingsDTO,
+  });
+});
+
 // --- DELETE /api/user/data  (ログイン中ユーザーの全データを削除。users 行は残す) ---
 apiApp.delete("/api/user/data", async (c) => {
   const userId = c.get("userId");
@@ -498,6 +848,13 @@ apiApp.delete("/api/user/data", async (c) => {
     db
       .delete(schema.salaryResults)
       .where(eq(schema.salaryResults.userId, userId)),
+    db
+      .delete(schema.allowanceHistory)
+      .where(eq(schema.allowanceHistory.userId, userId)),
+    db
+      .delete(schema.monthlyOvertime)
+      .where(eq(schema.monthlyOvertime.userId, userId)),
+    db.delete(schema.userSettings).where(eq(schema.userSettings.userId, userId)),
   ]);
   return c.json({ ok: true });
 });
