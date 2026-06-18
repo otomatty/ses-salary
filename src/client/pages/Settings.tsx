@@ -1,17 +1,20 @@
 import { useState } from "react";
+import {
+  Alert,
+  Button,
+  Card,
+  Chip,
+  Input,
+  Label,
+  Modal,
+  Radio,
+  RadioGroup,
+  TextField,
+} from "@heroui/react";
 import type { DashboardResponse } from "@shared/types";
 import { currentYearMonth } from "@shared/periods";
 import type { Rank } from "@shared/rateTable";
 import { api } from "../api";
-import {
-  Button,
-  Card,
-  Modal,
-  SectionTitle,
-  Badge,
-  ErrorBanner,
-  NoticeBanner,
-} from "../components/ui";
 
 /** データ全削除の確認に入力させる語句。 */
 const CONFIRM_PHRASE = "削除します";
@@ -32,10 +35,12 @@ export function Settings({
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  const closeDelete = () => {
-    setDeleteOpen(false);
-    setConfirmText("");
-    setError(null);
+  const handleDeleteOpenChange = (open: boolean) => {
+    setDeleteOpen(open);
+    if (!open) {
+      setConfirmText("");
+      setError(null);
+    }
   };
 
   const deleteAll = async () => {
@@ -44,8 +49,7 @@ export function Settings({
     try {
       await api.deleteAllData();
       await reload();
-      setDeleteOpen(false);
-      setConfirmText("");
+      handleDeleteOpenChange(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "削除に失敗しました");
     } finally {
@@ -79,154 +83,193 @@ export function Settings({
   return (
     <div className="space-y-6">
       {dashboard.rankProvisional && (
-        <NoticeBanner>
-          評価ランクが未設定のため、暫定的にランク1で給与を計算しています。下記でランクを設定すると、暫定表示は消えます。
-        </NoticeBanner>
+        <Alert status="warning">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description>
+              評価ランクが未設定のため、暫定的にランク1で給与を計算しています。下記でランクを設定すると、暫定表示は消えます。
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
       )}
 
       <Card>
-        <SectionTitle>現在の評価ランク</SectionTitle>
-        <div className="flex items-center gap-3">
-          <Badge tone={dashboard.rankProvisional ? "amber" : "indigo"}>
-            ランク {dashboard.currentRank}
-            {dashboard.rankProvisional ? "（暫定）" : ""}
-          </Badge>
-          <span className="text-sm text-slate-500">
-            {dashboard.rankProvisional
-              ? "（未設定のため暫定値）"
-              : `（${currentYearMonth()} 時点で適用中）`}
-          </span>
-        </div>
-        <p className="mt-3 text-xs text-slate-400">
-          評価ランクは人事評価で決まる枝番です。A-0 / A-1
-          帯（40〜50万円）および固定額帯（40万円未満）ではランクに関わらず還元率が決まります。
-        </p>
+        <Card.Header>
+          <Card.Title className="text-sm">現在の評価ランク</Card.Title>
+        </Card.Header>
+        <Card.Content>
+          <div className="flex items-center gap-3">
+            <Chip
+              color={dashboard.rankProvisional ? "warning" : "accent"}
+              variant="soft"
+            >
+              ランク {dashboard.currentRank}
+              {dashboard.rankProvisional ? "（暫定）" : ""}
+            </Chip>
+            <span className="text-muted text-sm">
+              {dashboard.rankProvisional
+                ? "（未設定のため暫定値）"
+                : `（${currentYearMonth()} 時点で適用中）`}
+            </span>
+          </div>
+          <p className="text-muted mt-3 text-xs">
+            評価ランクは人事評価で決まる枝番です。A-0 / A-1
+            帯（40〜50万円）および固定額帯（40万円未満）ではランクに関わらず還元率が決まります。
+          </p>
+        </Card.Content>
       </Card>
 
       <Card>
-        <SectionTitle>評価ランクの変更</SectionTitle>
-        <div className="space-y-4">
-          <div>
-            <p className="mb-2 text-sm text-slate-500">ランクを選択</p>
-            <div className="flex gap-2">
+        <Card.Header>
+          <Card.Title className="text-sm">評価ランクの変更</Card.Title>
+        </Card.Header>
+        <Card.Content className="space-y-4">
+          <RadioGroup
+            value={String(rank)}
+            onChange={(v) => setRank(Number(v) as Rank)}
+            orientation="horizontal"
+          >
+            <Label>ランクを選択</Label>
+            <div className="flex gap-4">
               {([1, 2, 3] as Rank[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setRank(r)}
-                  className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition ${
-                    rank === r
-                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                      : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
+                <Radio key={r} value={String(r)}>
                   ランク {r}
-                </button>
+                </Radio>
               ))}
             </div>
-          </div>
+          </RadioGroup>
 
-          <label className="flex flex-col text-sm">
-            <span className="mb-1 text-slate-500">適用開始月</span>
-            <input
-              type="month"
-              value={effectiveFrom}
-              onChange={(e) => setEffectiveFrom(e.target.value)}
-              className="w-48 rounded-lg border border-slate-300 px-3 py-2"
-            />
-            <span className="mt-1 text-xs text-slate-400">
+          <TextField
+            value={effectiveFrom}
+            onChange={setEffectiveFrom}
+            className="max-w-xs"
+          >
+            <Label>適用開始月</Label>
+            <Input type="month" />
+            <p className="text-muted mt-1 text-xs">
               この月以降に適用される給与計算でこのランクが使われます。
-            </span>
-          </label>
+            </p>
+          </TextField>
 
-          {error && <ErrorBanner message={error} />}
+          {error && !deleteOpen && (
+            <Alert status="danger">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Description>{error}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
 
-          <Button onClick={save} disabled={saving}>
+          <Button variant="primary" onPress={save} isDisabled={saving}>
             {saving ? "保存中…" : "保存して再計算"}
           </Button>
-        </div>
+        </Card.Content>
       </Card>
 
       {dashboard.rankHistory.length > 0 && (
         <Card>
-          <SectionTitle>評価ランクの履歴</SectionTitle>
-          <ul className="divide-y divide-slate-100">
-            {[...dashboard.rankHistory]
-              .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1))
-              .map((h) => (
-                <li
-                  key={h.id}
-                  className="flex items-center justify-between py-2.5 text-sm"
-                >
-                  <div>
-                    <span className="font-medium text-slate-800">
-                      {h.effectiveFrom} 〜
-                    </span>
-                    <span className="ml-3 text-slate-600">ランク {h.rank}</span>
-                  </div>
-                  <Button variant="danger" onClick={() => removeRank(h.id)}>
-                    削除
-                  </Button>
-                </li>
-              ))}
-          </ul>
+          <Card.Header>
+            <Card.Title className="text-sm">評価ランクの履歴</Card.Title>
+          </Card.Header>
+          <Card.Content>
+            <ul className="divide-border divide-y">
+              {[...dashboard.rankHistory]
+                .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1))
+                .map((h) => (
+                  <li
+                    key={h.id}
+                    className="flex items-center justify-between py-2.5 text-sm"
+                  >
+                    <div>
+                      <span className="font-medium">{h.effectiveFrom} 〜</span>
+                      <span className="text-muted ml-3">ランク {h.rank}</span>
+                    </div>
+                    <Button
+                      variant="danger-soft"
+                      size="sm"
+                      onPress={() => removeRank(h.id)}
+                    >
+                      削除
+                    </Button>
+                  </li>
+                ))}
+            </ul>
+          </Card.Content>
         </Card>
       )}
 
-      <Card className="border-red-200">
-        <SectionTitle>危険な操作</SectionTitle>
-        <p className="text-sm text-slate-600">
-          月単価・評価ランク履歴・給与スナップショットをすべて削除します。
-          アカウントは残り、ログインしたまま空の状態から再入力できます。この操作は取り消せません。
-        </p>
-        <div className="mt-4">
-          <Button variant="danger" onClick={() => setDeleteOpen(true)}>
-            すべてのデータを削除
-          </Button>
-        </div>
-      </Card>
-
-      {deleteOpen && (
-        <Modal onClose={closeDelete}>
-          <h2 className="text-base font-semibold text-slate-800">
-            本当にすべてのデータを削除しますか？
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            月単価・評価ランク履歴・給与スナップショットがすべて消去されます。この操作は取り消せません。
+      <Card className="border-danger/40 border">
+        <Card.Header>
+          <Card.Title className="text-sm">危険な操作</Card.Title>
+        </Card.Header>
+        <Card.Content>
+          <p className="text-muted text-sm">
+            月単価・評価ランク履歴・給与スナップショットをすべて削除します。
+            アカウントは残り、ログインしたまま空の状態から再入力できます。この操作は取り消せません。
           </p>
-          <label className="mt-4 flex flex-col text-sm">
-            <span className="mb-1 text-slate-500">
-              確認のため <strong className="text-slate-800">{CONFIRM_PHRASE}</strong>{" "}
-              と入力してください
-            </span>
-            <input
-              type="text"
-              value={confirmText}
-              onChange={(e) => setConfirmText(e.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2"
-              autoFocus
-            />
-          </label>
-
-          {error && (
-            <div className="mt-3">
-              <ErrorBanner message={error} />
+          <Modal isOpen={deleteOpen} onOpenChange={handleDeleteOpenChange}>
+            <div className="mt-4">
+              <Button
+                variant="danger"
+                onPress={() => handleDeleteOpenChange(true)}
+              >
+                すべてのデータを削除
+              </Button>
             </div>
-          )}
-
-          <div className="mt-5 flex justify-end gap-2">
-            <Button variant="secondary" onClick={closeDelete} disabled={deleting}>
-              キャンセル
-            </Button>
-            <Button
-              variant="danger"
-              onClick={deleteAll}
-              disabled={deleting || confirmText !== CONFIRM_PHRASE}
-            >
-              {deleting ? "削除中…" : "削除する"}
-            </Button>
-          </div>
-        </Modal>
-      )}
+            <Modal.Backdrop isDismissable={!deleting}>
+              <Modal.Container size="sm">
+                <Modal.Dialog>
+                  <Modal.Header>
+                    <Modal.Heading>
+                      本当にすべてのデータを削除しますか？
+                    </Modal.Heading>
+                  </Modal.Header>
+                  <Modal.Body className="space-y-4">
+                    <p className="text-muted text-sm">
+                      月単価・評価ランク履歴・給与スナップショットがすべて消去されます。この操作は取り消せません。
+                    </p>
+                    <TextField value={confirmText} onChange={setConfirmText}>
+                      <Label>
+                        確認のため{" "}
+                        <strong className="text-foreground">
+                          {CONFIRM_PHRASE}
+                        </strong>{" "}
+                        と入力してください
+                      </Label>
+                      {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+                      <Input autoFocus />
+                    </TextField>
+                    {error && (
+                      <Alert status="danger">
+                        <Alert.Indicator />
+                        <Alert.Content>
+                          <Alert.Description>{error}</Alert.Description>
+                        </Alert.Content>
+                      </Alert>
+                    )}
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button
+                      variant="secondary"
+                      onPress={() => handleDeleteOpenChange(false)}
+                      isDisabled={deleting}
+                    >
+                      キャンセル
+                    </Button>
+                    <Button
+                      variant="danger"
+                      onPress={deleteAll}
+                      isDisabled={deleting || confirmText !== CONFIRM_PHRASE}
+                    >
+                      {deleting ? "削除中…" : "削除する"}
+                    </Button>
+                  </Modal.Footer>
+                </Modal.Dialog>
+              </Modal.Container>
+            </Modal.Backdrop>
+          </Modal>
+        </Card.Content>
+      </Card>
     </div>
   );
 }

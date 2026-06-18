@@ -1,14 +1,17 @@
 import { useState, type FormEvent } from "react";
+import {
+  Alert,
+  Button,
+  Card,
+  Input,
+  Label,
+  NumberField,
+  TextField,
+} from "@heroui/react";
 import type { DashboardResponse } from "@shared/types";
 import { formatYen } from "@shared/calc";
 import { currentYearMonth } from "@shared/periods";
 import { api } from "../api";
-import {
-  Button,
-  Card,
-  SectionTitle,
-  ErrorBanner,
-} from "../components/ui";
 
 /** 月単価の入力・編集（PRD §8 画面3）。過去月も遡って入力可能。 */
 export function Prices({
@@ -21,22 +24,21 @@ export function Prices({
   error: string | null;
 }) {
   const [yearMonth, setYearMonth] = useState(currentYearMonth());
-  const [price, setPrice] = useState("");
+  const [price, setPrice] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    const value = Number(price);
-    if (!Number.isFinite(value) || value <= 0) {
+    if (price == null || !Number.isFinite(price) || price <= 0) {
       setFormError("単価を正しく入力してください。");
       return;
     }
     setSaving(true);
     try {
-      await api.savePrice(yearMonth, value);
-      setPrice("");
+      await api.savePrice(yearMonth, price);
+      setPrice(null);
       await reload();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "保存に失敗しました");
@@ -58,91 +60,107 @@ export function Prices({
   // 既存月をクリックしたら編集フォームへ反映
   const editExisting = (ym: string, p: number) => {
     setYearMonth(ym);
-    setPrice(String(p));
+    setPrice(p);
   };
 
   return (
     <div className="space-y-6">
-      {error && <ErrorBanner message={error} />}
+      {error && (
+        <Alert status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description>{error}</Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
 
       <Card>
-        <SectionTitle>月単価の追加・編集</SectionTitle>
-        <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col text-sm">
-            <span className="mb-1 text-slate-500">年月</span>
-            <input
-              type="month"
-              value={yearMonth}
-              onChange={(e) => setYearMonth(e.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2"
-              required
-            />
-          </label>
-          <label className="flex flex-col text-sm">
-            <span className="mb-1 text-slate-500">月単価（円）</span>
-            <input
-              type="number"
-              inputMode="numeric"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="例: 1000000"
-              className="w-40 rounded-lg border border-slate-300 px-3 py-2"
-              min={0}
-              required
-            />
-          </label>
-          <Button type="submit" disabled={saving}>
-            {saving ? "保存中…" : "保存"}
-          </Button>
-        </form>
-        {formError && (
-          <div className="mt-3">
-            <ErrorBanner message={formError} />
-          </div>
-        )}
-        <p className="mt-3 text-xs text-slate-400">
-          同じ年月を保存すると上書き更新されます。過去の月も遡って入力できます。
-        </p>
+        <Card.Header>
+          <Card.Title className="text-sm">月単価の追加・編集</Card.Title>
+        </Card.Header>
+        <Card.Content className="space-y-3">
+          <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
+            <TextField value={yearMonth} onChange={setYearMonth} isRequired>
+              <Label>年月</Label>
+              <Input type="month" />
+            </TextField>
+            <NumberField
+              value={price ?? NaN}
+              onChange={(v) => setPrice(Number.isNaN(v) ? null : v)}
+              minValue={0}
+              isRequired
+              formatOptions={{ useGrouping: true }}
+            >
+              <Label>月単価（円）</Label>
+              <NumberField.Group>
+                <NumberField.Input placeholder="例: 1000000" />
+              </NumberField.Group>
+            </NumberField>
+            <Button type="submit" variant="primary" isDisabled={saving}>
+              {saving ? "保存中…" : "保存"}
+            </Button>
+          </form>
+          {formError && (
+            <Alert status="danger">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Description>{formError}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
+          <p className="text-muted text-xs">
+            同じ年月を保存すると上書き更新されます。過去の月も遡って入力できます。
+          </p>
+        </Card.Content>
       </Card>
 
       <Card>
-        <SectionTitle>登録済みの月単価（{dashboard.prices.length} 件）</SectionTitle>
-        {dashboard.prices.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-400">
-            まだ登録がありません。上のフォームから入力してください。
-          </p>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {[...dashboard.prices]
-              .sort((a, b) => (a.yearMonth < b.yearMonth ? 1 : -1))
-              .map((p) => (
-                <li
-                  key={p.id}
-                  className="flex items-center justify-between py-2.5"
-                >
-                  <div>
-                    <span className="font-medium text-slate-800">
-                      {p.yearMonth}
-                    </span>
-                    <span className="ml-3 text-slate-600">
-                      {formatYen(p.unitPrice)} 円
-                    </span>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      onClick={() => editExisting(p.yearMonth, p.unitPrice)}
-                    >
-                      編集
-                    </Button>
-                    <Button variant="danger" onClick={() => remove(p.id)}>
-                      削除
-                    </Button>
-                  </div>
-                </li>
-              ))}
-          </ul>
-        )}
+        <Card.Header>
+          <Card.Title className="text-sm">
+            登録済みの月単価（{dashboard.prices.length} 件）
+          </Card.Title>
+        </Card.Header>
+        <Card.Content>
+          {dashboard.prices.length === 0 ? (
+            <p className="text-muted py-6 text-center text-sm">
+              まだ登録がありません。上のフォームから入力してください。
+            </p>
+          ) : (
+            <ul className="divide-border divide-y">
+              {[...dashboard.prices]
+                .sort((a, b) => (a.yearMonth < b.yearMonth ? 1 : -1))
+                .map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex items-center justify-between py-2.5"
+                  >
+                    <div>
+                      <span className="font-medium">{p.yearMonth}</span>
+                      <span className="text-muted ml-3">
+                        {formatYen(p.unitPrice)} 円
+                      </span>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onPress={() => editExisting(p.yearMonth, p.unitPrice)}
+                      >
+                        編集
+                      </Button>
+                      <Button
+                        variant="danger-soft"
+                        size="sm"
+                        onPress={() => remove(p.id)}
+                      >
+                        削除
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </Card.Content>
       </Card>
     </div>
   );

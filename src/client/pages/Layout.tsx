@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Button, Tabs } from "@heroui/react";
 import type { ApiUser } from "@shared/types";
 import { api } from "../api";
 import { navigate, type Route } from "../router";
@@ -33,49 +34,40 @@ export function Layout({
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
+      <header className="bg-surface/80 border-border sticky top-0 z-10 border-b backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <button
-            onClick={() => navigate("home")}
-            className="text-base font-bold text-slate-900"
-          >
-            エンジニア給与計算
-          </button>
+          <Button variant="ghost" size="sm" onPress={() => navigate("home")}>
+            <span className="text-base font-bold">エンジニア給与計算</span>
+          </Button>
           <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-slate-500 sm:inline">
+            <span className="text-muted hidden text-sm sm:inline">
               {user.name}
             </span>
-            <button
-              onClick={handleLogout}
-              className="text-sm text-slate-500 hover:text-slate-800"
-            >
+            <Button variant="ghost" size="sm" onPress={handleLogout}>
               ログアウト
-            </button>
+            </Button>
           </div>
         </div>
-        <nav className="mx-auto flex max-w-3xl gap-1 px-2">
-          {NAV.map((item) => (
-            <button
-              key={item.route}
-              onClick={() => navigate(item.route)}
-              className={`relative px-3 py-2 text-sm font-medium transition ${
-                route === item.route
-                  ? "text-indigo-600"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              {item.label}
-              {route === item.route && (
-                <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-indigo-600" />
-              )}
-            </button>
-          ))}
-        </nav>
+        <div className="mx-auto max-w-3xl px-2">
+          <Tabs
+            selectedKey={route}
+            onSelectionChange={(key) => navigate(key as Route)}
+          >
+            <Tabs.List>
+              {NAV.map((item) => (
+                <Tabs.Tab key={item.route} id={item.route}>
+                  {item.label}
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Tabs>
+        </div>
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-6">{children}</main>
 
-      <footer className="mx-auto max-w-3xl px-4 py-8 text-center text-xs text-slate-400">
+      <footer className="text-muted mx-auto max-w-3xl px-4 py-8 text-center text-xs">
         本アプリは額面（総支給）の計算・予測・可視化に特化しています。
         手取り・控除は含みません。
       </footer>

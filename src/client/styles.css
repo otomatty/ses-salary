@@ -1,4 +1,5 @@
-@import "tailwindcss";
+/* HeroUI v3 styles (includes Tailwind CSS v4 + theme tokens + component styles). */
+@import "@heroui/react/styles";
 
 :root {
   color-scheme: light;
@@ -20,6 +21,4 @@ body {
     "Noto Sans JP",
     Meiryo,
     sans-serif;
-  background-color: #f8fafc;
-  color: #0f172a;
 }
