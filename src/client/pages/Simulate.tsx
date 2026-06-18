@@ -22,7 +22,7 @@ import {
 import type { Rank } from "@shared/rateTable";
 import { SalaryBreakdownCard } from "../components/SalaryBreakdownCard";
 import { StatusGuidance } from "../components/StatusGuidance";
-import { navigate } from "../router";
+import { useNavigate } from "@tanstack/react-router";
 
 type Mode = "recent2" | "all3";
 
@@ -56,6 +56,7 @@ function PriceField({
  * 仮単価から給与を即時試算する。DB には一切書き込まない。
  */
 export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("recent2");
   const [rank, setRank] = useState<Rank>(dashboard.currentRank);
 
@@ -215,7 +216,7 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
                   variant="ghost"
                   size="sm"
                   className="mt-2"
-                  onPress={() => navigate("prices")}
+                  onPress={() => navigate({ to: "/prices" })}
                 >
                   月単価を入力する →
                 </Button>

@@ -1,23 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
+import { RouterProvider } from "@tanstack/react-router";
 import type { ApiUser, DashboardResponse } from "@shared/types";
 import { api } from "./api";
 import { Spinner } from "@heroui/react";
-import { useRoute } from "./router";
+import { AppProvider } from "./context/AppContext";
+import { router } from "./router";
 import { Login } from "./pages/Login";
-import { Layout } from "./pages/Layout";
-import { Home } from "./pages/Home";
-import { Prices } from "./pages/Prices";
-import { Detail } from "./pages/Detail";
-import { Simulate } from "./pages/Simulate";
-import { Settings } from "./pages/Settings";
 
-/** アプリのルート。認証状態とダッシュボードデータを管理し、ルートに応じて画面を出し分ける。 */
+/** アプリのルート。認証状態とダッシュボードデータを管理し、TanStack Router で画面を出し分ける。 */
 export function App() {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [dashError, setDashError] = useState<string | null>(null);
-  const route = useRoute();
 
   // 認証状態の確認
   useEffect(() => {
@@ -60,21 +55,17 @@ export function App() {
   if (!user) return <Login onLoggedIn={handleLoggedIn} />;
 
   return (
-    <Layout user={user} route={route} onLogout={handleLogout}>
-      {!dashboard ? (
-        <LoadingScreen />
-      ) : route === "prices" ? (
-        <Prices dashboard={dashboard} reload={reload} error={dashError} />
-      ) : route === "detail" ? (
-        <Detail dashboard={dashboard} />
-      ) : route === "simulate" ? (
-        <Simulate dashboard={dashboard} />
-      ) : route === "settings" ? (
-        <Settings dashboard={dashboard} reload={reload} />
-      ) : (
-        <Home dashboard={dashboard} error={dashError} />
-      )}
-    </Layout>
+    <AppProvider
+      value={{
+        user,
+        dashboard,
+        dashError,
+        reload,
+        handleLogout,
+      }}
+    >
+      <RouterProvider router={router} />
+    </AppProvider>
   );
 }
 

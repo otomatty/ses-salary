@@ -5,10 +5,11 @@ import { formatYen, formatRate } from "@shared/calc";
 import { CONSULT_GUIDANCE } from "@shared/guidance";
 import { RATE_BANDS } from "@shared/rateTable";
 import { SalaryBreakdownCard } from "../components/SalaryBreakdownCard";
-import { navigate } from "../router";
+import { useNavigate } from "@tanstack/react-router";
 
 /** 計算根拠の内訳（PRD §8 画面4 / §6.3）。検算用。 */
 export function Detail({ dashboard }: { dashboard: DashboardResponse }) {
+  const navigate = useNavigate();
   const hasAny = dashboard.current || dashboard.next;
 
   // 適用月 → 保存済み（確定）スナップショット
@@ -28,7 +29,7 @@ export function Detail({ dashboard }: { dashboard: DashboardResponse }) {
               variant="ghost"
               size="sm"
               className="mt-2"
-              onPress={() => navigate("prices")}
+              onPress={() => navigate({ to: "/prices" })}
             >
               月単価を入力する →
             </Button>

@@ -6,7 +6,7 @@ import type { SalaryResult } from "@shared/periods";
 import { LazyTrendChart } from "../components/LazyTrendChart";
 import { StatusBadge } from "../components/StatusBadge";
 import { StatusGuidance } from "../components/StatusGuidance";
-import { navigate } from "../router";
+import { useNavigate } from "@tanstack/react-router";
 
 /** ホーム画面（PRD §8 画面2）。推移グラフを主役に、今期・来期サマリを表示。 */
 export function Home({
@@ -16,6 +16,8 @@ export function Home({
   dashboard: DashboardResponse;
   error: string | null;
 }) {
+  const navigate = useNavigate();
+
   return (
     <div className="space-y-6">
       {error && (
@@ -42,7 +44,7 @@ export function Home({
               variant="secondary"
               size="sm"
               className="shrink-0"
-              onPress={() => navigate("settings")}
+              onPress={() => navigate({ to: "/settings" })}
             >
               評価ランクを設定 →
             </Button>
@@ -83,22 +85,22 @@ export function Home({
         <NavTile
           title="月単価の入力"
           desc="各月の単価を追加・編集"
-          onClick={() => navigate("prices")}
+          onClick={() => navigate({ to: "/prices" })}
         />
         <NavTile
           title="計算根拠の内訳"
           desc="帯・ランク・率・式を確認"
-          onClick={() => navigate("detail")}
+          onClick={() => navigate({ to: "/detail" })}
         />
         <NavTile
           title="単価シミュレーション"
           desc="仮単価で次の給与を試算"
-          onClick={() => navigate("simulate")}
+          onClick={() => navigate({ to: "/simulate" })}
         />
         <NavTile
           title="設定"
           desc="評価ランクの選択"
-          onClick={() => navigate("settings")}
+          onClick={() => navigate({ to: "/settings" })}
         />
       </div>
     </div>
@@ -117,6 +119,7 @@ function SummaryCard({
   emptyText: string;
   highlight?: boolean;
 }) {
+  const navigate = useNavigate();
   const guidance = result ? guidanceForStatus(result.breakdown.status) : null;
 
   return (
@@ -164,7 +167,7 @@ function SummaryCard({
               </div>
             )}
             <div className="mt-3">
-              <Button variant="ghost" size="sm" onPress={() => navigate("detail")}>
+              <Button variant="ghost" size="sm" onPress={() => navigate({ to: "/detail" })}>
                 計算根拠を見る →
               </Button>
             </div>
