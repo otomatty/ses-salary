@@ -11,6 +11,7 @@ import { Detail } from "./pages/Detail";
 import { Simulate } from "./pages/Simulate";
 import { Settings } from "./pages/Settings";
 
+/** アプリのルート。認証状態とダッシュボードデータを管理し、ルートに応じて画面を出し分ける。 */
 export function App() {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -42,17 +43,26 @@ export function App() {
     if (user) reload();
   }, [user, reload]);
 
-  if (!authChecked) return <div className="flex justify-center py-16">
-          <Spinner />
-        </div>;
-  if (!user) return <Login onLoggedIn={(u) => setUser(u)} />;
+  // ユーザー切替時に前セッションのダッシュボードが一瞬残らないよう、
+  // ログイン・ログアウトの両方で関連 state を初期化する。
+  const handleLoggedIn = (u: ApiUser) => {
+    setDashboard(null);
+    setDashError(null);
+    setUser(u);
+  };
+  const handleLogout = () => {
+    setDashboard(null);
+    setDashError(null);
+    setUser(null);
+  };
+
+  if (!authChecked) return <LoadingScreen />;
+  if (!user) return <Login onLoggedIn={handleLoggedIn} />;
 
   return (
-    <Layout user={user} route={route} onLogout={() => setUser(null)}>
+    <Layout user={user} route={route} onLogout={handleLogout}>
       {!dashboard ? (
-        <div className="flex justify-center py-16">
-          <Spinner />
-        </div>
+        <LoadingScreen />
       ) : route === "prices" ? (
         <Prices dashboard={dashboard} reload={reload} error={dashError} />
       ) : route === "detail" ? (
@@ -65,5 +75,14 @@ export function App() {
         <Home dashboard={dashboard} error={dashError} />
       )}
     </Layout>
+  );
+}
+
+/** 認証確認中・ダッシュボード読込中に表示する中央寄せのスピナー。 */
+function LoadingScreen() {
+  return (
+    <div className="flex justify-center py-16">
+      <Spinner />
+    </div>
   );
 }

@@ -108,6 +108,7 @@ export function SalaryBreakdownCard({
   );
 }
 
+/** 内訳の1行（ラベルと値）。 */
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="border-border flex items-start justify-between gap-4 border-b pb-2">

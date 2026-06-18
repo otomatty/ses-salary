@@ -209,7 +209,12 @@ export function Settings({
           </p>
           <Modal isOpen={deleteOpen} onOpenChange={handleDeleteOpenChange}>
             <div className="mt-4">
-              <Button variant="danger">すべてのデータを削除</Button>
+              <Button
+                variant="danger"
+                onPress={() => handleDeleteOpenChange(true)}
+              >
+                すべてのデータを削除
+              </Button>
             </div>
             <Modal.Backdrop isDismissable={!deleting}>
               <Modal.Container size="sm">

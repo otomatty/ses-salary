@@ -105,6 +105,7 @@ export function Home({
   );
 }
 
+/** 今期・来期の給与サマリカード。給与額・ステータス・案内・計算根拠への導線を表示する。 */
 function SummaryCard({
   label,
   result,
@@ -174,6 +175,7 @@ function SummaryCard({
   );
 }
 
+/** 各画面への遷移タイル（ボタン）。 */
 function NavTile({
   title,
   desc,

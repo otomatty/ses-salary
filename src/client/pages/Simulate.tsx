@@ -293,6 +293,7 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
   );
 }
 
+/** 現在の予測と試算結果の差分（給与差額・帯・ランクの変化）を表示するカード。 */
 function DiffCard({
   diff,
   baseline,
