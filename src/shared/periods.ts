@@ -63,16 +63,25 @@ export function compareYM(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/** 一括入力で一度に登録できる最大月数（UI・サーバで共有する業務上の上限）。 */
+export const BULK_MAX_MONTHS = 120;
+
 /**
  * start から end まで（両端含む）の連続した年月を古い順で返す。
  * end が start より前なら空配列。一括入力で範囲を月リストへ展開するのに使う。
+ *
+ * 範囲が長すぎる場合に黙って切り捨てると、UI が「一部だけ保存して成功」扱いに
+ * なってしまう（指定した終了月が保存されない）。そのため業務上の上限
+ * {@link BULK_MAX_MONTHS} では切らず、実際の月数をそのまま返す（上限超過は
+ * 呼び出し側で検証・拒否する）。壊れた入力での暴走だけは十分大きい安全上限で防ぐ。
  */
 export function monthRange(start: string, end: string): string[] {
   if (compareYM(start, end) > 0) return [];
   const result: string[] = [];
   let cursor = start;
-  // 上限ガード（不正入力での無限ループ防止）。120ヶ月=10年分まで。
-  for (let i = 0; i < 120 && compareYM(cursor, end) <= 0; i++) {
+  // 安全上限（不正・壊れた入力での無限ループ防止）。業務上の上限よりはるかに大きい。
+  const HARD_CAP = 1200; // 100年分
+  for (let i = 0; i < HARD_CAP && compareYM(cursor, end) <= 0; i++) {
     result.push(cursor);
     cursor = addMonths(cursor, 1);
   }

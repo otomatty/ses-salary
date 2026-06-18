@@ -11,6 +11,7 @@ import {
   buildSalaryHistory,
   buildNextPeriodSnapshot,
   monthRange,
+  BULK_MAX_MONTHS,
 } from "../src/shared/periods";
 import { DEBUT_AMOUNT, guidanceNote } from "../src/shared/guidance";
 
@@ -57,6 +58,15 @@ describe("monthRange", () => {
 
   it("終了が開始より前なら空", () => {
     expect(monthRange("2026-06", "2026-04")).toEqual([]);
+  });
+
+  it("業務上の上限（120ヶ月）を超える範囲も切り捨てず実数を返す", () => {
+    // 2020-01〜2030-01 は 121ヶ月。黙って 120 に丸めない（呼び出し側が拒否できるように）。
+    const range = monthRange("2020-01", "2030-01");
+    expect(range.length).toBe(121);
+    expect(range.length).toBeGreaterThan(BULK_MAX_MONTHS);
+    expect(range[0]).toBe("2020-01");
+    expect(range[range.length - 1]).toBe("2030-01");
   });
 });
 

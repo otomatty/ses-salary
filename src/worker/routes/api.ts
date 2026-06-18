@@ -9,7 +9,7 @@ import type { Env } from "../env";
 import { getDb, schema } from "../db";
 import { newId } from "../lib/id";
 import { getUserIdFromRequest } from "../auth";
-import { isValidYearMonth } from "@shared/periods";
+import { isValidYearMonth, BULK_MAX_MONTHS } from "@shared/periods";
 import {
   buildSalaryHistory,
   buildNextPeriodSnapshot,
@@ -337,8 +337,11 @@ apiApp.post("/api/prices/bulk", async (c) => {
   if (!Array.isArray(items) || items.length === 0) {
     return c.json({ error: "入力する月単価がありません。" }, 400);
   }
-  if (items.length > 120) {
-    return c.json({ error: "一度に入力できるのは120ヶ月までです。" }, 400);
+  if (items.length > BULK_MAX_MONTHS) {
+    return c.json(
+      { error: `一度に入力できるのは${BULK_MAX_MONTHS}ヶ月までです。` },
+      400,
+    );
   }
 
   // 全件バリデーション（1件でも不正なら何も保存しない）。

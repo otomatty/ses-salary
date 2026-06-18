@@ -136,6 +136,24 @@ describe("/api/prices", () => {
       expect(res.status).toBe(400);
     });
 
+    it("120ヶ月を超える件数は 400（切り捨てず拒否）", async () => {
+      // 2020-01 から 121ヶ月分（上限 120 を 1 超過）。
+      const items = Array.from({ length: 121 }, (_, i) => {
+        const total = 2020 * 12 + i;
+        const y = Math.floor(total / 12);
+        const m = (total % 12) + 1;
+        return {
+          yearMonth: `${y}-${String(m).padStart(2, "0")}`,
+          unitPrice: 800_000,
+        };
+      });
+      const res = await postJson("/api/prices/bulk", { items }, cookie);
+      expect(res.status).toBe(400);
+      // 1件も保存されていない（原子性）。
+      const list = await request("/api/prices", {}, cookie);
+      expect((await list.json()) as { prices: unknown[] }).toEqual({ prices: [] });
+    });
+
     it("1件でも不正なら全体を保存しない（400・原子性）", async () => {
       const res = await postJson(
         "/api/prices/bulk",

@@ -10,7 +10,12 @@ import {
 } from "@heroui/react";
 import type { DashboardResponse } from "@shared/types";
 import { formatManYen, formatYen, manYenToYen, yenToManYen } from "@shared/calc";
-import { compareYM, currentYearMonth, monthRange } from "@shared/periods";
+import {
+  BULK_MAX_MONTHS,
+  compareYM,
+  currentYearMonth,
+  monthRange,
+} from "@shared/periods";
 import { api } from "../api";
 
 /** 万円単位の単価入力フィールド。空欄は null として扱う。 */
@@ -69,6 +74,7 @@ export function Prices({
     () => monthRange(bulkFrom, bulkTo),
     [bulkFrom, bulkTo],
   );
+  const bulkOverLimit = bulkMonths.length > BULK_MAX_MONTHS;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -98,6 +104,12 @@ export function Prices({
     }
     if (bulkMonths.length === 0) {
       setBulkError("対象の月がありません。");
+      return;
+    }
+    if (bulkMonths.length > BULK_MAX_MONTHS) {
+      setBulkError(
+        `一度に入力できるのは${BULK_MAX_MONTHS}ヶ月までです（現在 ${bulkMonths.length}ヶ月分が選択されています）。期間を分けて入力してください。`,
+      );
       return;
     }
     if (
@@ -211,7 +223,7 @@ export function Prices({
             <Button
               type="submit"
               variant="primary"
-              isDisabled={bulkSaving || bulkMonths.length === 0}
+              isDisabled={bulkSaving || bulkMonths.length === 0 || bulkOverLimit}
             >
               {bulkSaving ? "保存中…" : "一括保存"}
             </Button>
@@ -220,6 +232,11 @@ export function Prices({
           <p className="text-muted text-xs">
             {bulkMonths.length === 0 ? (
               "終了年月は開始年月以降にしてください。"
+            ) : bulkOverLimit ? (
+              <span className="text-danger">
+                {bulkMonths.length}ヶ月分が選択されています。一度に入力できるのは
+                {BULK_MAX_MONTHS}ヶ月までです。期間を分けて入力してください。
+              </span>
             ) : (
               <>
                 <strong className="text-foreground">
