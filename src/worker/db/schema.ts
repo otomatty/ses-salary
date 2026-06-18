@@ -77,7 +77,66 @@ export const salaryResults = sqliteTable(
   }),
 );
 
+/** 本人設定（雇用形態・所定労働時間など）。ユーザーごとに1件。 */
+export const userSettings = sqliteTable("user_settings", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  employmentType: text("employment_type").notNull(),
+  monthlyStandardHours: real("monthly_standard_hours").notNull(),
+  // みなし残業時間のオーバーライド。null なら雇用形態から導出する。
+  deemedOvertimeHours: real("deemed_overtime_hours"),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+/** 特別手当の履歴（手当名 × 適用開始年月ごと）。amount 0 は廃止を表す。 */
+export const allowanceHistory = sqliteTable(
+  "allowance_history",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    effectiveFrom: text("effective_from").notNull(), // "YYYY-MM"
+    amount: integer("amount").notNull(), // 円（0 = 廃止）
+    // 残業単価の基礎（基本給 + 職務手当）に算入するか（0|1）。
+    includeInOvertimeBase: integer("include_in_overtime_base").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => ({
+    userNameEffectiveUnique: uniqueIndex(
+      "allowance_history_user_name_effective_unique",
+    ).on(t.userId, t.name, t.effectiveFrom),
+  }),
+);
+
+/** 月次の残業時間（年月ごとに1件）。 */
+export const monthlyOvertime = sqliteTable(
+  "monthly_overtime",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    yearMonth: text("year_month").notNull(), // "YYYY-MM"
+    normalHours: real("normal_hours").notNull(),
+    nightHours: real("night_hours").notNull(),
+    holidayHours: real("holiday_hours").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => ({
+    userMonthUnique: uniqueIndex("monthly_overtime_user_month_unique").on(
+      t.userId,
+      t.yearMonth,
+    ),
+  }),
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type MonthlyPriceRow = typeof monthlyPrices.$inferSelect;
 export type RankHistoryRow = typeof rankHistory.$inferSelect;
 export type SalaryResultRow = typeof salaryResults.$inferSelect;
+export type UserSettingsRow = typeof userSettings.$inferSelect;
+export type AllowanceHistoryRow = typeof allowanceHistory.$inferSelect;
+export type MonthlyOvertimeRow = typeof monthlyOvertime.$inferSelect;

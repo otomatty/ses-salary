@@ -1,12 +1,16 @@
 /** API クライアント（fetch ラッパ）。Cookie セッションを使うため credentials: same-origin。 */
 
 import type {
+  AllowanceDTO,
   DashboardResponse,
   MeResponse,
+  MonthlyOvertimeDTO,
   MonthlyPriceDTO,
   SalaryResultDTO,
+  UserSettingsDTO,
 } from "@shared/types";
 import type { Rank } from "@shared/rateTable";
+import type { EmploymentTypeKey } from "@shared/income";
 
 async function request<T>(
   path: string,
@@ -67,6 +71,44 @@ export const api = {
 
   deleteRank: (id: string) =>
     request<{ ok: true }>(`/api/rank/${id}`, { method: "DELETE" }),
+
+  saveAllowance: (input: {
+    name: string;
+    effectiveFrom: string;
+    amount: number;
+    includeInOvertimeBase: boolean;
+  }) =>
+    request<{ allowance: AllowanceDTO }>("/api/allowances", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  deleteAllowance: (id: string) =>
+    request<{ ok: true }>(`/api/allowances/${id}`, { method: "DELETE" }),
+
+  saveOvertime: (input: {
+    yearMonth: string;
+    normalHours: number;
+    nightHours: number;
+    holidayHours: number;
+  }) =>
+    request<{ overtime: MonthlyOvertimeDTO }>("/api/overtime", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  deleteOvertime: (id: string) =>
+    request<{ ok: true }>(`/api/overtime/${id}`, { method: "DELETE" }),
+
+  saveSettings: (input: {
+    employmentType: EmploymentTypeKey;
+    monthlyStandardHours: number;
+    deemedOvertimeHours: number | null;
+  }) =>
+    request<{ settings: UserSettingsDTO }>("/api/settings", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 
   deleteAllData: () =>
     request<{ ok: true }>("/api/user/data", { method: "DELETE" }),
