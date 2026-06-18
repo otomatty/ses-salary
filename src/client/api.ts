@@ -61,6 +61,9 @@ export const api = {
   deleteRank: (id: string) =>
     request<{ ok: true }>(`/api/rank/${id}`, { method: "DELETE" }),
 
+  deleteAllData: () =>
+    request<{ ok: true }>("/api/user/data", { method: "DELETE" }),
+
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
 
   devLogin: () =>

@@ -97,6 +97,29 @@ export function ErrorBanner({ message }: { message: string }) {
   );
 }
 
+/** 中央表示のモーダル。オーバーレイのクリックで閉じる（中身のクリックは伝播させない）。 */
+export function Modal({
+  children,
+  onClose,
+}: {
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /** 注意喚起・案内用のバナー（暫定ランクの明示など）。子要素にボタン等も置ける。 */
 export function NoticeBanner({
   children,

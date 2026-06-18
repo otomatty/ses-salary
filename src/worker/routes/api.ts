@@ -411,3 +411,19 @@ apiApp.delete("/api/rank/:id", async (c) => {
     .run();
   return c.json({ ok: true });
 });
+
+// --- DELETE /api/user/data  (ログイン中ユーザーの全データを削除。users 行は残す) ---
+apiApp.delete("/api/user/data", async (c) => {
+  const userId = c.get("userId");
+  const db = getDb(c.env.DB);
+  await db.batch([
+    db
+      .delete(schema.monthlyPrices)
+      .where(eq(schema.monthlyPrices.userId, userId)),
+    db.delete(schema.rankHistory).where(eq(schema.rankHistory.userId, userId)),
+    db
+      .delete(schema.salaryResults)
+      .where(eq(schema.salaryResults.userId, userId)),
+  ]);
+  return c.json({ ok: true });
+});

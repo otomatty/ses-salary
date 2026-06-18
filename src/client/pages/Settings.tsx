@@ -6,11 +6,15 @@ import { api } from "../api";
 import {
   Button,
   Card,
+  Modal,
   SectionTitle,
   Badge,
   ErrorBanner,
   NoticeBanner,
 } from "../components/ui";
+
+/** データ全削除の確認に入力させる語句。 */
+const CONFIRM_PHRASE = "削除します";
 
 /** 設定画面（PRD §8 画面5）。評価ランクの選択。期ごとに履歴を保持。 */
 export function Settings({
@@ -24,6 +28,30 @@ export function Settings({
   const [effectiveFrom, setEffectiveFrom] = useState(currentYearMonth());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const closeDelete = () => {
+    setDeleteOpen(false);
+    setConfirmText("");
+    setError(null);
+  };
+
+  const deleteAll = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      await api.deleteAllData();
+      await reload();
+      setDeleteOpen(false);
+      setConfirmText("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "削除に失敗しました");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -142,6 +170,62 @@ export function Settings({
               ))}
           </ul>
         </Card>
+      )}
+
+      <Card className="border-red-200">
+        <SectionTitle>危険な操作</SectionTitle>
+        <p className="text-sm text-slate-600">
+          月単価・評価ランク履歴・給与スナップショットをすべて削除します。
+          アカウントは残り、ログインしたまま空の状態から再入力できます。この操作は取り消せません。
+        </p>
+        <div className="mt-4">
+          <Button variant="danger" onClick={() => setDeleteOpen(true)}>
+            すべてのデータを削除
+          </Button>
+        </div>
+      </Card>
+
+      {deleteOpen && (
+        <Modal onClose={closeDelete}>
+          <h2 className="text-base font-semibold text-slate-800">
+            本当にすべてのデータを削除しますか？
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            月単価・評価ランク履歴・給与スナップショットがすべて消去されます。この操作は取り消せません。
+          </p>
+          <label className="mt-4 flex flex-col text-sm">
+            <span className="mb-1 text-slate-500">
+              確認のため <strong className="text-slate-800">{CONFIRM_PHRASE}</strong>{" "}
+              と入力してください
+            </span>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              className="rounded-lg border border-slate-300 px-3 py-2"
+              autoFocus
+            />
+          </label>
+
+          {error && (
+            <div className="mt-3">
+              <ErrorBanner message={error} />
+            </div>
+          )}
+
+          <div className="mt-5 flex justify-end gap-2">
+            <Button variant="secondary" onClick={closeDelete} disabled={deleting}>
+              キャンセル
+            </Button>
+            <Button
+              variant="danger"
+              onClick={deleteAll}
+              disabled={deleting || confirmText !== CONFIRM_PHRASE}
+            >
+              {deleting ? "削除中…" : "削除する"}
+            </Button>
+          </div>
+        </Modal>
       )}
     </div>
   );
