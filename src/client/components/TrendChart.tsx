@@ -72,6 +72,18 @@ export function TrendChart({
     .sort((a, b) => compareYM(a.appliedFrom, b.appliedFrom))
     .map((r) => ({ month: r.appliedFrom, salary: r.breakdown.salary }));
 
+  // Y軸ドメインを単価・給与の両系列の最大値から明示的に算出する。
+  // 給与ラインは独自 data（salaryData）を持つため、recharts の自動ドメインだと
+  // チャート全体の data 側にある単価（unitPrice）が軸の範囲計算に反映されず、
+  // 単価（給与より大きいことが多い）が軸の上端からはみ出して見えなくなる。
+  // 両系列の最大値を 10万単位で切り上げた値を上端に固定して、必ず両方が収まるようにする。
+  const yMax = Math.max(
+    0,
+    ...prices.map((p) => p.unitPrice),
+    ...history.map((r) => r.breakdown.salary ?? 0),
+  );
+  const yDomainMax = yMax > 0 ? Math.ceil(yMax / 100000) * 100000 : undefined;
+
   if (data.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center text-sm text-slate-400">
@@ -97,6 +109,7 @@ export function TrendChart({
           <YAxis
             tick={{ fontSize: 11, fill: "#64748b" }}
             width={56}
+            domain={yDomainMax ? [0, yDomainMax] : undefined}
             tickFormatter={(v: number) => `${Math.round(v / 10000)}万`}
           />
           <Tooltip
