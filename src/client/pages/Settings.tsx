@@ -7,13 +7,11 @@ import {
   Input,
   Label,
   Modal,
-  Radio,
-  RadioGroup,
   TextField,
 } from "@heroui/react";
 import type { DashboardResponse } from "@shared/types";
 import { currentYearMonth } from "@shared/periods";
-import type { Rank } from "@shared/rateTable";
+import { RankForm } from "../components/RankForm";
 import { api } from "../api";
 
 /** データ全削除の確認に入力させる語句。 */
@@ -27,10 +25,7 @@ export function Settings({
   dashboard: DashboardResponse;
   reload: () => Promise<void>;
 }) {
-  const [rank, setRank] = useState<Rank>(dashboard.currentRank);
-  const [effectiveFrom, setEffectiveFrom] = useState(currentYearMonth());
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -54,19 +49,6 @@ export function Settings({
       setError(e instanceof Error ? e.message : "削除に失敗しました");
     } finally {
       setDeleting(false);
-    }
-  };
-
-  const save = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await api.saveRank(rank, effectiveFrom);
-      await reload();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "保存に失敗しました");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -123,46 +105,12 @@ export function Settings({
         <Card.Header>
           <Card.Title className="text-sm">評価ランクの変更</Card.Title>
         </Card.Header>
-        <Card.Content className="space-y-4">
-          <RadioGroup
-            value={String(rank)}
-            onChange={(v) => setRank(Number(v) as Rank)}
-            orientation="horizontal"
-          >
-            <Label>ランクを選択</Label>
-            <div className="flex gap-4">
-              {([1, 2, 3] as Rank[]).map((r) => (
-                <Radio key={r} value={String(r)}>
-                  ランク {r}
-                </Radio>
-              ))}
-            </div>
-          </RadioGroup>
-
-          <TextField
-            value={effectiveFrom}
-            onChange={setEffectiveFrom}
-            className="max-w-xs"
-          >
-            <Label>適用開始月</Label>
-            <Input type="month" />
-            <p className="text-muted mt-1 text-xs">
-              この月以降に適用される給与計算でこのランクが使われます。
-            </p>
-          </TextField>
-
-          {error && !deleteOpen && (
-            <Alert status="danger">
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Description>{error}</Alert.Description>
-              </Alert.Content>
-            </Alert>
-          )}
-
-          <Button variant="primary" onPress={save} isDisabled={saving}>
-            {saving ? "保存中…" : "保存して再計算"}
-          </Button>
+        <Card.Content>
+          <RankForm
+            initialRank={dashboard.currentRank}
+            reload={reload}
+            saveLabel="保存して再計算"
+          />
         </Card.Content>
       </Card>
 

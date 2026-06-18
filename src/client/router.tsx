@@ -7,12 +7,14 @@ import {
 } from "@tanstack/react-router";
 import { Spinner } from "@heroui/react";
 import { useAppContext } from "./context/AppContext";
+import { useOnboardingRedirect } from "./hooks/useOnboardingRedirect";
 import { Layout } from "./pages/Layout";
 import { Home } from "./pages/Home";
 import { Prices } from "./pages/Prices";
 import { Detail } from "./pages/Detail";
 import { Simulate } from "./pages/Simulate";
 import { Settings } from "./pages/Settings";
+import { Onboarding } from "./pages/Onboarding";
 
 function LoadingScreen() {
   return (
@@ -24,6 +26,8 @@ function LoadingScreen() {
 
 function AppShell() {
   const { dashboard, user, handleLogout } = useAppContext();
+  // 初回利用者の誘導は専用 hook に委譲し、AppShell はレイアウトのみを担う。
+  useOnboardingRedirect(dashboard);
   if (!dashboard) return <LoadingScreen />;
   return <Layout user={user} onLogout={handleLogout} />;
 }
@@ -53,6 +57,11 @@ function SimulateRoute() {
 function SettingsRoute() {
   const { dashboard, reload } = useAppContext();
   return <Settings dashboard={dashboard!} reload={reload} />;
+}
+
+function OnboardingRoute() {
+  const { dashboard, reload } = useAppContext();
+  return <Onboarding dashboard={dashboard!} reload={reload} />;
 }
 
 const rootRoute = createRootRoute({
@@ -96,6 +105,12 @@ const settingsRoute = createRoute({
   component: SettingsRoute,
 });
 
+const onboardingRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/onboarding",
+  component: OnboardingRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     indexRoute,
@@ -103,6 +118,7 @@ const routeTree = rootRoute.addChildren([
     detailRoute,
     simulateRoute,
     settingsRoute,
+    onboardingRoute,
   ]),
 ]);
 
