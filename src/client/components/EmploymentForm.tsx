@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -34,6 +34,13 @@ export function EmploymentForm({
   >(settings.monthlyStandardHours);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // reload で props.settings が変わったら入力欄も追従させる（例: 全データ削除で
+  // 設定が既定値に戻ったとき、削除前の雇用形態を保持・再保存してしまうのを防ぐ）。
+  useEffect(() => {
+    setEmploymentType(settings.employmentType);
+    setMonthlyStandardHours(settings.monthlyStandardHours);
+  }, [settings.employmentType, settings.monthlyStandardHours]);
 
   const deemed = findEmploymentType(employmentType).deemedOvertimeHours;
 
