@@ -350,3 +350,18 @@ export function buildSalaryHistory(
   }
   return results;
 }
+
+/**
+ * 算出可能な全四半期分の確定スナップショット（古い順）を返す。
+ * `buildSalaryHistory` と同じ対象（直前四半期が揃う各四半期）を永続化用へ変換する。
+ *
+ * 月単価を個別に保存した場合と一括で保存した場合とで、保存されるスナップショット群が
+ * 一致するようにするための関数。サーバ側の永続化（reconcile）で使う。
+ */
+export function buildAllPeriodSnapshots(
+  prices: PricePoint[],
+  rankHistory: RankHistoryEntry[],
+  rankFallback: Rank = 1,
+): SalarySnapshot[] {
+  return buildSalaryHistory(prices, rankHistory, rankFallback).map(toSnapshot);
+}

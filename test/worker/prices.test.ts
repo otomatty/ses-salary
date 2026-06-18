@@ -131,6 +131,36 @@ describe("/api/prices", () => {
       );
     });
 
+    it("複数四半期にまたがる一括保存は、完了した各四半期のスナップショットを保存する", async () => {
+      // 2026-01〜06（Q1・Q2 の2四半期）を一括保存。個別入力した場合と同じく
+      // Q1→2026-04、Q2→2026-07 の両方のスナップショットが永続化されるべき。
+      const items = [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+      ].map((ym) => ({ yearMonth: ym, unitPrice: 1_000_000 }));
+      const res = await postJson("/api/prices/bulk", { items }, cookie);
+      expect(res.status).toBe(201);
+
+      const dash = await request("/api/dashboard", {}, cookie);
+      const body = (await dash.json()) as {
+        savedResults: {
+          appliedFrom: string;
+          salary: number | null;
+          status: string;
+        }[];
+      };
+      const applied = body.savedResults.map((r) => r.appliedFrom);
+      expect(applied).toContain("2026-04"); // Q1(01-03) 由来
+      expect(applied).toContain("2026-07"); // Q2(04-06) 由来
+      const apr = body.savedResults.find((r) => r.appliedFrom === "2026-04");
+      expect(apr?.salary).toBe(545_200); // 平均100万・暫定ランク1 → I帯 54.52%
+      expect(apr?.status).toBe("ok");
+    });
+
     it("空配列は 400", async () => {
       const res = await postJson("/api/prices/bulk", { items: [] }, cookie);
       expect(res.status).toBe(400);
