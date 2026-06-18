@@ -46,6 +46,13 @@ export const api = {
       body: JSON.stringify({ yearMonth, unitPrice }),
     }),
 
+  /** 複数月の単価をまとめて作成/更新する（連続月の一括入力用）。 */
+  savePricesBulk: (items: { yearMonth: string; unitPrice: number }[]) =>
+    request<{ prices: MonthlyPriceDTO[] }>("/api/prices/bulk", {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    }),
+
   deletePrice: (id: string) =>
     request<{ ok: true }>(`/api/prices/${id}`, { method: "DELETE" }),
 

@@ -16,7 +16,7 @@
 import { RATE_BANDS, type BandKind, type RateBand } from "./rateTable";
 
 /** calc と UI で共有する給与計算結果の区分 */
-export type GuidanceStatus = "ok" | "fixed" | "consult";
+export type GuidanceStatus = "ok" | "fixed" | "consult" | "debut";
 
 /**
  * 給与の個別相談・問い合わせ窓口。
@@ -107,6 +107,20 @@ export const FIXED_GUIDANCE: SalaryGuidance = {
   )} 円以上になると、還元率方式での自動計算に切り替わります。`,
 };
 
+/** デビュー特例の支給額（円）。資料上は固定額帯（アカデミア）と同額。 */
+export const DEBUT_AMOUNT = FIXED_AMOUNT;
+
+/** デビュー特例（四半期の途中でデビュー/入社）の案内。 */
+export const DEBUT_GUIDANCE: SalaryGuidance = {
+  badge: "デビュー特例",
+  headline: `デビュー四半期のため一律 ${yen(DEBUT_AMOUNT)} 円`,
+  reason: `四半期の途中（第2月・第3月）でエンジニアデビュー（または入社）したため、基準となる四半期の案件単価が3ヶ月分そろいません。この場合、還元率方式ではなく一律 ${yen(
+    DEBUT_AMOUNT,
+  )} 円（アカデミア相当）が適用されます。`,
+  nextAction:
+    "案件単価が3ヶ月分そろう最初の四半期からは、還元率方式での自動計算に切り替わります。",
+};
+
 /** 要相談が絡む比較で差額を出せないときの案内。 */
 export const CONSULT_DELTA_BLOCKED = `${CONSULT_GUIDANCE.badge}を含むため差額は計算できません。`;
 
@@ -119,6 +133,8 @@ export function guidanceForStatus(
       return CONSULT_GUIDANCE;
     case "fixed":
       return FIXED_GUIDANCE;
+    case "debut":
+      return DEBUT_GUIDANCE;
     case "ok":
       return null;
     default: {
@@ -146,4 +162,9 @@ export function formatFixedFormula(avgUnitPrice: number, salary: number): string
   return `平均単価 ${yen(avgUnitPrice)} 円 < ${yen(
     FIXED_UPPER,
   )} 円 → 一律 ${yen(salary)} 円`;
+}
+
+/** デビュー特例時の検算用計算式テキスト。 */
+export function formatDebutFormula(monthCount: number, salary: number): string {
+  return `デビュー四半期（単価 ${monthCount}ヶ月分のみ）→ 一律 ${yen(salary)} 円`;
 }

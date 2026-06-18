@@ -52,7 +52,7 @@ export function SalaryBreakdownCard({
 
         {/* 内訳 */}
         <dl className="space-y-2 text-sm">
-          <Row label="対象3ヶ月">
+          <Row label={b.status === "debut" ? "対象月（デビュー）" : "対象3ヶ月"}>
             <div className="flex flex-wrap justify-end gap-1.5">
               {b.months.map((m) => (
                 <Chip key={m.yearMonth} size="sm" variant="soft">
@@ -64,7 +64,9 @@ export function SalaryBreakdownCard({
           <Row label="平均単価">{formatYen(b.avgUnitPrice)} 円</Row>
           <Row label="判定された帯">{b.band.label}</Row>
           <Row label="評価ランク">
-            {b.status === "fixed" || b.band.kind === "single"
+            {b.status === "fixed" ||
+            b.status === "debut" ||
+            b.band.kind === "single"
               ? "—（不問）"
               : result.rankProvisional
                 ? `ランク ${b.rank}（暫定）`

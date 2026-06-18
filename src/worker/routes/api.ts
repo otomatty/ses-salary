@@ -9,10 +9,10 @@ import type { Env } from "../env";
 import { getDb, schema } from "../db";
 import { newId } from "../lib/id";
 import { getUserIdFromRequest } from "../auth";
-import { isValidYearMonth } from "@shared/periods";
+import { isValidYearMonth, BULK_MAX_MONTHS } from "@shared/periods";
 import {
   buildSalaryHistory,
-  buildNextPeriodSnapshot,
+  buildAllPeriodSnapshots,
   computeSalaryForQuarter,
   currentYearMonth,
   quarterStartMonth,
@@ -31,7 +31,7 @@ import type {
   RankHistoryDTO,
   SalaryResultDTO,
 } from "@shared/types";
-import type { SalaryResultRow } from "../db/schema";
+import type { MonthlyPriceRow, SalaryResultRow } from "../db/schema";
 
 type AppEnv = { Bindings: Env; Variables: { userId: string } };
 
@@ -131,11 +131,15 @@ async function loadSavedResults(
 }
 
 /**
- * 来期（最新単価が属する四半期の次四半期適用）の確定スナップショットを `salary_results` に upsert する。
- * 単価/ランクの保存後に呼び、同一 applied_from は最新値で更新する（PRD §9）。
- * 算出に必要な直前四半期（3ヶ月）が揃っていない場合は何もしない。
+ * 算出可能な全四半期の確定スナップショットを `salary_results` に upsert する（PRD §9）。
+ *
+ * 単価/ランクの保存後に呼ぶ。**最新の来期だけでなく、算出できる全四半期**を対象に
+ * 同一 applied_from を最新値で更新（無ければ作成）する。これにより、月を個別に
+ * 入力した場合と一括で入力した場合とで、永続化される監査スナップショットが
+ * 一致する（入力順・入力単位に依存しない）。
+ * 算出可能な四半期が無い場合は何もしない。upsert は D1 の batch で原子的に適用する。
  */
-async function snapshotNextPeriod(env: Env, userId: string): Promise<void> {
+async function reconcileSnapshots(env: Env, userId: string): Promise<void> {
   const { priceDTOs, rankDTOs } = await loadUserData(env, userId);
   const pricePoints: PricePoint[] = priceDTOs.map((p) => ({
     yearMonth: p.yearMonth,
@@ -146,42 +150,35 @@ async function snapshotNextPeriod(env: Env, userId: string): Promise<void> {
     rank: r.rank,
   }));
 
-  const snap = buildNextPeriodSnapshot(pricePoints, rankHistory);
-  if (!snap) return;
+  const snaps = buildAllPeriodSnapshots(pricePoints, rankHistory);
+  if (snaps.length === 0) return;
 
   const db = getDb(env.DB);
   const now = Date.now();
   const existing = await db
     .select()
     .from(schema.salaryResults)
-    .where(
-      and(
-        eq(schema.salaryResults.userId, userId),
-        eq(schema.salaryResults.appliedFrom, snap.appliedFrom),
-      ),
-    )
-    .get();
+    .where(eq(schema.salaryResults.userId, userId))
+    .all();
+  const byApplied = new Map(existing.map((r) => [r.appliedFrom, r]));
 
-  if (existing) {
-    await db
-      .update(schema.salaryResults)
-      .set({
-        avgUnitPrice: snap.avgUnitPrice,
-        appliedBand: snap.appliedBand,
-        appliedRank: snap.appliedRank,
-        appliedRate: snap.appliedRate,
-        salary: snap.salary,
-        status: snap.status,
-        calculatedAt: now,
-      })
-      .where(eq(schema.salaryResults.id, existing.id))
-      .run();
-    return;
-  }
-
-  await db
-    .insert(schema.salaryResults)
-    .values({
+  const stmts = snaps.map((snap) => {
+    const hit = byApplied.get(snap.appliedFrom);
+    if (hit) {
+      return db
+        .update(schema.salaryResults)
+        .set({
+          avgUnitPrice: snap.avgUnitPrice,
+          appliedBand: snap.appliedBand,
+          appliedRank: snap.appliedRank,
+          appliedRate: snap.appliedRate,
+          salary: snap.salary,
+          status: snap.status,
+          calculatedAt: now,
+        })
+        .where(eq(schema.salaryResults.id, hit.id));
+    }
+    return db.insert(schema.salaryResults).values({
       id: newId(),
       userId,
       appliedFrom: snap.appliedFrom,
@@ -192,8 +189,10 @@ async function snapshotNextPeriod(env: Env, userId: string): Promise<void> {
       salary: snap.salary,
       status: snap.status,
       calculatedAt: now,
-    })
-    .run();
+    });
+  });
+
+  await db.batch([stmts[0], ...stmts.slice(1)]);
 }
 
 // --- GET /api/dashboard ---
@@ -305,7 +304,7 @@ apiApp.post("/api/prices", async (c) => {
       .where(eq(schema.monthlyPrices.id, existing.id))
       .run();
     // 来期の確定スナップショットを保存（PRD §9）
-    await snapshotNextPeriod(c.env, userId);
+    await reconcileSnapshots(c.env, userId);
     return c.json({
       price: { id: existing.id, yearMonth, unitPrice: Math.round(unitPrice) },
     });
@@ -320,11 +319,86 @@ apiApp.post("/api/prices", async (c) => {
   };
   await db.insert(schema.monthlyPrices).values(row).run();
   // 来期の確定スナップショットを保存（PRD §9）
-  await snapshotNextPeriod(c.env, userId);
+  await reconcileSnapshots(c.env, userId);
   return c.json(
     { price: { id: row.id, yearMonth, unitPrice: row.unitPrice } },
     201,
   );
+});
+
+// --- POST /api/prices/bulk  (複数月をまとめて作成 or 更新) ---
+// 連続する月に同じ単価をまとめて入力する用途（例: 4〜6月を一括で 80万円）。
+apiApp.post("/api/prices/bulk", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json().catch(() => null);
+  const items: unknown = body?.items;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return c.json({ error: "入力する月単価がありません。" }, 400);
+  }
+  if (items.length > BULK_MAX_MONTHS) {
+    return c.json(
+      { error: `一度に入力できるのは${BULK_MAX_MONTHS}ヶ月までです。` },
+      400,
+    );
+  }
+
+  // 全件バリデーション（1件でも不正なら何も保存しない）。
+  const normalized: { yearMonth: string; unitPrice: number }[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const yearMonth = (item as { yearMonth?: unknown })?.yearMonth;
+    const unitPrice = (item as { unitPrice?: unknown })?.unitPrice;
+    if (typeof yearMonth !== "string" || !isValidYearMonth(yearMonth)) {
+      return c.json({ error: "年月の形式が不正です（YYYY-MM）。" }, 400);
+    }
+    if (seen.has(yearMonth)) {
+      return c.json({ error: `年月が重複しています（${yearMonth}）。` }, 400);
+    }
+    seen.add(yearMonth);
+    if (
+      typeof unitPrice !== "number" ||
+      !Number.isFinite(unitPrice) ||
+      unitPrice < 0 ||
+      unitPrice > 100_000_000
+    ) {
+      return c.json(
+        { error: "単価は0以上の妥当な金額で入力してください。" },
+        400,
+      );
+    }
+    normalized.push({ yearMonth, unitPrice: Math.round(unitPrice) });
+  }
+
+  const db = getDb(c.env.DB);
+  const now = Date.now();
+
+  // 全件を1つの batch（D1 の暗黙トランザクション）で upsert する。
+  // 途中失敗時に一部だけ適用されることを防ぎ、文書化された「原子的な一括 upsert」を満たす。
+  // 既存月との競合は unique index (user_id, year_month) で検知し、その行を更新する
+  // （事前 select に依存しないため、同時実行で間に挿入されても破綻しない）。
+  const upserts = normalized.map(({ yearMonth, unitPrice }) =>
+    db
+      .insert(schema.monthlyPrices)
+      .values({ id: newId(), userId, yearMonth, unitPrice, updatedAt: now })
+      .onConflictDoUpdate({
+        target: [schema.monthlyPrices.userId, schema.monthlyPrices.yearMonth],
+        set: { unitPrice, updatedAt: now },
+      })
+      .returning(),
+  );
+  const results = await db.batch([upserts[0], ...upserts.slice(1)]);
+  const saved: MonthlyPriceDTO[] = (results as MonthlyPriceRow[][]).map(
+    (rows) => {
+      const r = rows[0];
+      return { id: r.id, yearMonth: r.yearMonth, unitPrice: r.unitPrice };
+    },
+  );
+
+  // 算出可能な全四半期の確定スナップショットを保存（PRD §9）。
+  await reconcileSnapshots(c.env, userId);
+  saved.sort((a, b) => (a.yearMonth < b.yearMonth ? -1 : 1));
+  return c.json({ prices: saved }, 201);
 });
 
 // --- DELETE /api/prices/:id ---
@@ -378,7 +452,7 @@ apiApp.post("/api/rank", async (c) => {
       .where(eq(schema.rankHistory.id, existing.id))
       .run();
     // 来期の確定スナップショットを保存（PRD §9）
-    await snapshotNextPeriod(c.env, userId);
+    await reconcileSnapshots(c.env, userId);
     return c.json({ rank: { id: existing.id, effectiveFrom, rank } });
   }
 
@@ -391,7 +465,7 @@ apiApp.post("/api/rank", async (c) => {
   };
   await db.insert(schema.rankHistory).values(row).run();
   // 来期の確定スナップショットを保存（PRD §9）
-  await snapshotNextPeriod(c.env, userId);
+  await reconcileSnapshots(c.env, userId);
   return c.json({ rank: { id: row.id, effectiveFrom, rank } }, 201);
 });
 
