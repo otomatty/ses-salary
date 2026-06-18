@@ -1,9 +1,12 @@
+import { useEffect, useRef } from "react";
 import {
   Navigate,
   Outlet,
   createRootRoute,
   createRoute,
   createRouter,
+  useNavigate,
+  useRouterState,
 } from "@tanstack/react-router";
 import { Spinner } from "@heroui/react";
 import { useAppContext } from "./context/AppContext";
@@ -13,6 +16,7 @@ import { Prices } from "./pages/Prices";
 import { Detail } from "./pages/Detail";
 import { Simulate } from "./pages/Simulate";
 import { Settings } from "./pages/Settings";
+import { Onboarding, isOnboardingDone } from "./pages/Onboarding";
 
 function LoadingScreen() {
   return (
@@ -24,6 +28,22 @@ function LoadingScreen() {
 
 function AppShell() {
   const { dashboard, user, handleLogout } = useAppContext();
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // 初回（データが空＝未設定）の利用者を一度だけオンボーディングへ誘導する。
+  // ref で「セッション中1回だけ」に制限し、ホーム等への遷移をブロックしない。
+  const redirectedRef = useRef(false);
+
+  useEffect(() => {
+    if (!dashboard || redirectedRef.current) return;
+    const fresh =
+      dashboard.prices.length === 0 && dashboard.rankHistory.length === 0;
+    if (fresh && !isOnboardingDone() && pathname !== "/onboarding") {
+      redirectedRef.current = true;
+      navigate({ to: "/onboarding" });
+    }
+  }, [dashboard, pathname, navigate]);
+
   if (!dashboard) return <LoadingScreen />;
   return <Layout user={user} onLogout={handleLogout} />;
 }
@@ -53,6 +73,11 @@ function SimulateRoute() {
 function SettingsRoute() {
   const { dashboard, reload } = useAppContext();
   return <Settings dashboard={dashboard!} reload={reload} />;
+}
+
+function OnboardingRoute() {
+  const { dashboard, reload } = useAppContext();
+  return <Onboarding dashboard={dashboard!} reload={reload} />;
 }
 
 const rootRoute = createRootRoute({
@@ -96,6 +121,12 @@ const settingsRoute = createRoute({
   component: SettingsRoute,
 });
 
+const onboardingRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/onboarding",
+  component: OnboardingRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     indexRoute,
@@ -103,6 +134,7 @@ const routeTree = rootRoute.addChildren([
     detailRoute,
     simulateRoute,
     settingsRoute,
+    onboardingRoute,
   ]),
 ]);
 
