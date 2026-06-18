@@ -1,0 +1,58 @@
+name: Deploy
+
+# main への push で本番（Cloudflare Workers）へ自動デプロイする。
+# 手動実行（Actions 画面の Run workflow）も可能。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 本番デプロイは途中で打ち切らない（中断したデプロイによる不整合を避ける）。
+# 同時に複数のデプロイが走らないよう直列化する。
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # GitHub Environment「production」にシークレットや承認を紐づけられる。
+    environment:
+      name: production
+      url: https://ses-salary.a-sugai.workers.dev
+    # wrangler は環境変数からトークン／アカウントIDを読み取る。
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      # supply chain 対策として action はコミット SHA でピン留めする（タグはコメントで明示）。
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # 認証情報を .git/config に残さない（後続ステップへの漏えい防止）。
+          persist-credentials: false
+
+      # パッケージマネージャは Bun（package.json の packageManager に準拠）。
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.11
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # デプロイ前にローカル検証と同じゲート（typecheck → test）を通す。
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
+      # 本番 D1 にマイグレーションを適用してからデプロイする
+      # （database_id は wrangler.jsonc の env.production に定義済み）。
+      - name: Apply D1 migrations (remote)
+        run: bunx wrangler d1 migrations apply ses-salary-db --remote --env production
+
+      # package.json の deploy スクリプト（本番ビルド + wrangler deploy）をそのまま使う。
+      - name: Build & Deploy
+        run: bun run deploy
