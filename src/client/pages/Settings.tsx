@@ -30,6 +30,8 @@ export function Settings({
   reload: () => Promise<void>;
 }) {
   const [error, setError] = useState<string | null>(null);
+  // 手当の削除エラーは手当カード内に表示する（error は削除モーダル内でのみ表示されるため）。
+  const [allowanceError, setAllowanceError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -68,11 +70,12 @@ export function Settings({
 
   const removeAllowance = async (id: string) => {
     if (!confirm("この手当の設定を削除しますか？")) return;
+    setAllowanceError(null);
     try {
       await api.deleteAllowance(id);
       await reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "削除に失敗しました");
+      setAllowanceError(e instanceof Error ? e.message : "削除に失敗しました");
     }
   };
 
@@ -189,7 +192,15 @@ export function Settings({
           <Card.Header>
             <Card.Title className="text-sm">手当の履歴</Card.Title>
           </Card.Header>
-          <Card.Content>
+          <Card.Content className="space-y-3">
+            {allowanceError && (
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Description>{allowanceError}</Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
             <ul className="divide-border divide-y">
               {[...dashboard.allowances]
                 .sort((a, b) =>
