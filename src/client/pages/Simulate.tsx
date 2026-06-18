@@ -11,7 +11,7 @@ import {
 } from "@heroui/react";
 import type { DashboardResponse } from "@shared/types";
 import type { PricePoint } from "@shared/calc";
-import { formatYen } from "@shared/calc";
+import { formatManYen, formatYen, manYenToYen, yenToManYen } from "@shared/calc";
 import { CONSULT_DELTA_BLOCKED } from "@shared/guidance";
 import { addMonths, currentYearMonth, precedingMonths } from "@shared/periods";
 import {
@@ -26,13 +26,14 @@ import { navigate } from "../router";
 
 type Mode = "recent2" | "all3";
 
-/** 仮単価入力用の NumberField。空欄は null として扱う。 */
+/** 仮単価入力用の NumberField（万円単位）。空欄は null として扱う。 */
 function PriceField({
   label,
   value,
   onChange,
 }: {
   label: string;
+  /** 万円単位の値 */
   value: number | null;
   onChange: (v: number | null) => void;
 }) {
@@ -41,11 +42,13 @@ function PriceField({
       value={value ?? NaN}
       onChange={(v) => onChange(Number.isNaN(v) ? null : v)}
       minValue={0}
-      formatOptions={{ useGrouping: true }}
+      step={1}
+      formatOptions={{ useGrouping: true, maximumFractionDigits: 4 }}
     >
       <Label>{label}</Label>
       <NumberField.Group>
-        <NumberField.Input placeholder="例: 1000000" />
+        <NumberField.Input placeholder="例: 80" />
+        <span className="text-muted px-2 text-sm">万円</span>
       </NumberField.Group>
     </NumberField>
   );
@@ -89,30 +92,36 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
     () => new Map(dashboard.prices.map((p) => [p.yearMonth, p.unitPrice])),
     [dashboard.prices],
   );
+  // 仮単価の入力状態はすべて「万円単位」で保持する（実績は円で保持）。
+  const toMan = (yen: number | undefined): number | null =>
+    yen != null ? yenToManYen(yen) : null;
   const [hypoPrice, setHypoPrice] = useState<number | null>(null);
   const [all3Prices, setAll3Prices] = useState<[
     number | null,
     number | null,
     number | null,
   ]>(() => [
-    priceMap.get(all3Months[0]) ?? null,
-    priceMap.get(all3Months[1]) ?? null,
-    priceMap.get(all3Months[2]) ?? null,
+    toMan(priceMap.get(all3Months[0])),
+    toMan(priceMap.get(all3Months[1])),
+    toMan(priceMap.get(all3Months[2])),
   ]);
 
-  // 入力から対象3ヶ月の単価点を組み立てる（不正・未入力なら null）。
+  // 入力（万円）から対象3ヶ月の単価点（円）を組み立てる（不正・未入力なら null）。
   const months = useMemo<PricePoint[] | null>(() => {
     const valid = (v: number | null): v is number =>
       v != null && Number.isFinite(v) && v > 0;
     if (mode === "recent2") {
       if (recentTwo.length < 2) return null;
       if (!valid(hypoPrice)) return null;
-      return [...recentTwo, { yearMonth: hypoMonth, unitPrice: hypoPrice }];
+      return [
+        ...recentTwo,
+        { yearMonth: hypoMonth, unitPrice: manYenToYen(hypoPrice) },
+      ];
     }
     if (!all3Prices.every(valid)) return null;
     return all3Months.map((ym, i) => ({
       yearMonth: ym,
-      unitPrice: all3Prices[i] as number,
+      unitPrice: manYenToYen(all3Prices[i] as number),
     }));
   }, [mode, recentTwo, hypoPrice, hypoMonth, all3Prices, all3Months]);
 
@@ -234,7 +243,7 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
                       <p className="text-muted text-xs">
                         {m.yearMonth}（実績）
                       </p>
-                      <p className="font-medium">{formatYen(m.unitPrice)} 円</p>
+                      <p className="font-medium">{formatManYen(m.unitPrice)}</p>
                     </div>
                   ))}
                 </div>

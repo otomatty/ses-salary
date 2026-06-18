@@ -9,6 +9,7 @@
 
 import {
   calcSalary,
+  buildDebutBreakdown,
   type PricePoint,
   type SalaryBreakdown,
   type SalaryStatus,
@@ -60,6 +61,22 @@ export function precedingMonths(ym: string, count: number): string[] {
 /** 2つの年月を比較（a < b なら負, a === b なら 0, a > b なら正） */
 export function compareYM(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * start から end まで（両端含む）の連続した年月を古い順で返す。
+ * end が start より前なら空配列。一括入力で範囲を月リストへ展開するのに使う。
+ */
+export function monthRange(start: string, end: string): string[] {
+  if (compareYM(start, end) > 0) return [];
+  const result: string[] = [];
+  let cursor = start;
+  // 上限ガード（不正入力での無限ループ防止）。120ヶ月=10年分まで。
+  for (let i = 0; i < 120 && compareYM(cursor, end) <= 0; i++) {
+    result.push(cursor);
+    cursor = addMonths(cursor, 1);
+  }
+  return result;
 }
 
 /**
@@ -141,10 +158,24 @@ export interface SalaryResult {
   rankProvisional: boolean;
 }
 
+/** priceMap に登録された最古の年月（"YYYY-MM"）。空なら null。 */
+function earliestMonth(priceMap: Map<string, number>): string | null {
+  let min: string | null = null;
+  for (const ym of priceMap.keys()) {
+    if (min === null || ym < min) min = ym;
+  }
+  return min;
+}
+
 /**
  * 「指定四半期に適用される給与」を、その**直前の四半期**の平均単価から計算する。
  * @param quarterStart 適用四半期の開始月（"YYYY-MM"。四半期内の任意の月でも開始月に正規化する）
- * 直前四半期の3ヶ月の単価が揃っていない場合は null を返す。
+ *
+ * 算出ルール（PRD 別紙）:
+ * - 直前四半期の3ヶ月すべての単価が揃う → 還元率方式（calcSalary）。
+ * - 直前四半期が「デビュー四半期」で、第2月／第3月にデビュー（＝月初より後に最初の単価が
+ *   付き、そこから四半期末まで連続して単価がある）→ デビュー特例（一律 235,000 円）。
+ * - それ以外で3ヶ月が揃わない（データ不足・歯抜け）→ null（算出不能・入力待ち）。
  */
 export function computeSalaryForQuarter(
   quarterStart: string,
@@ -153,21 +184,62 @@ export function computeSalaryForQuarter(
   rankFallback: Rank = 1,
 ): SalaryResult | null {
   const targetStart = quarterStartMonth(quarterStart);
-  const sourceMonths = quarterMonths(prevQuarterStart(targetStart));
+  const sourceQuarterStart = prevQuarterStart(targetStart);
+  const sourceMonths = quarterMonths(sourceQuarterStart);
   const points: PricePoint[] = [];
   for (const ym of sourceMonths) {
     const price = priceMap.get(ym);
-    if (price === undefined) return null; // 直前四半期の3ヶ月が揃っていない
-    points.push({ yearMonth: ym, unitPrice: price });
+    if (price !== undefined) points.push({ yearMonth: ym, unitPrice: price });
   }
-  const rank = rankAt(rankHistory, targetStart, rankFallback);
-  const breakdown = calcSalary(points, rank);
-  return {
-    appliedFrom: targetStart,
-    periodLabel: quarterLabel(targetStart),
-    breakdown,
-    rankProvisional: isRankProvisional(rankHistory, targetStart),
-  };
+
+  // 3ヶ月すべて揃う → 通常の還元率方式。
+  if (points.length === sourceMonths.length) {
+    const rank = rankAt(rankHistory, targetStart, rankFallback);
+    return {
+      appliedFrom: targetStart,
+      periodLabel: quarterLabel(targetStart),
+      breakdown: calcSalary(points, rank),
+      rankProvisional: isRankProvisional(rankHistory, targetStart),
+    };
+  }
+
+  // 揃っていない場合、デビュー四半期（途中デビュー）かどうかを判定する。
+  if (points.length > 0 && isMidQuarterDebut(points, sourceMonths, priceMap)) {
+    return {
+      appliedFrom: targetStart,
+      periodLabel: quarterLabel(targetStart),
+      breakdown: buildDebutBreakdown(points),
+      // デビュー特例はランク不問のため暫定扱いにはしない。
+      rankProvisional: false,
+    };
+  }
+
+  // それ以外（単なるデータ不足・歯抜け）は算出不能。
+  return null;
+}
+
+/**
+ * 直前四半期が「四半期の途中（第2月・第3月）でデビュー/入社した四半期」かどうか。
+ * 条件:
+ *  - この四半期に付いた最初の単価が、全データ中の最古月（＝デビュー月）と一致する
+ *  - その最初の単価月が四半期の第1月より後（＝月初より後にデビュー）
+ *  - 最初の単価月から四半期末まで、単価が連続して登録されている（歯抜けでない）
+ */
+function isMidQuarterDebut(
+  points: PricePoint[],
+  sourceMonths: string[],
+  priceMap: Map<string, number>,
+): boolean {
+  const firstPresent = points[0].yearMonth; // points は sourceMonths 順
+  const globalEarliest = earliestMonth(priceMap);
+  if (firstPresent !== globalEarliest) return false; // この四半期がデビュー四半期でない
+  if (firstPresent === sourceMonths[0]) return false; // 第1月デビュー（途中ではない）
+  // 最初の単価月以降が四半期末まで連続して揃っているか。
+  const trailing = sourceMonths.filter((ym) => ym >= firstPresent);
+  return (
+    trailing.length === points.length &&
+    trailing.every((ym) => priceMap.has(ym))
+  );
 }
 
 /**
@@ -242,7 +314,9 @@ export function buildSalaryHistory(
   rankHistory: RankHistoryEntry[],
   rankFallback: Rank = 1,
 ): SalaryResult[] {
-  if (prices.length < 3) return [];
+  // デビュー特例（1〜2ヶ月のみ）でも給与が出るため、空でなければ走査する。
+  // 算出不能な四半期は computeSalaryForQuarter が null を返してスキップされる。
+  if (prices.length === 0) return [];
   const priceMap = new Map(prices.map((p) => [p.yearMonth, p.unitPrice]));
   const sorted = [...prices].sort((a, b) => compareYM(a.yearMonth, b.yearMonth));
   const first = sorted[0].yearMonth;

@@ -78,6 +78,95 @@ describe("/api/prices", () => {
     expect((await list.json()) as { prices: unknown[] }).toEqual({ prices: [] });
   });
 
+  describe("POST /api/prices/bulk（一括入力）", () => {
+    it("連続月をまとめて作成し 201 を返す", async () => {
+      const res = await postJson(
+        "/api/prices/bulk",
+        {
+          items: [
+            { yearMonth: "2026-04", unitPrice: 800_000 },
+            { yearMonth: "2026-05", unitPrice: 800_000 },
+            { yearMonth: "2026-06", unitPrice: 800_000 },
+          ],
+        },
+        cookie,
+      );
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { prices: { yearMonth: string }[] };
+      expect(body.prices.map((p) => p.yearMonth)).toEqual([
+        "2026-04",
+        "2026-05",
+        "2026-06",
+      ]);
+
+      const list = await request("/api/prices", {}, cookie);
+      const prices = ((await list.json()) as { prices: unknown[] }).prices;
+      expect(prices).toHaveLength(3);
+    });
+
+    it("既存月は上書き、新規月は作成する（混在 upsert）", async () => {
+      await postJson(
+        "/api/prices",
+        { yearMonth: "2026-04", unitPrice: 700_000 },
+        cookie,
+      );
+      const res = await postJson(
+        "/api/prices/bulk",
+        {
+          items: [
+            { yearMonth: "2026-04", unitPrice: 800_000 }, // 上書き
+            { yearMonth: "2026-05", unitPrice: 800_000 }, // 新規
+          ],
+        },
+        cookie,
+      );
+      expect(res.status).toBe(201);
+      const list = await request("/api/prices", {}, cookie);
+      const prices = (
+        (await list.json()) as { prices: { yearMonth: string; unitPrice: number }[] }
+      ).prices;
+      expect(prices).toHaveLength(2);
+      expect(prices.find((p) => p.yearMonth === "2026-04")?.unitPrice).toBe(
+        800_000,
+      );
+    });
+
+    it("空配列は 400", async () => {
+      const res = await postJson("/api/prices/bulk", { items: [] }, cookie);
+      expect(res.status).toBe(400);
+    });
+
+    it("1件でも不正なら全体を保存しない（400・原子性）", async () => {
+      const res = await postJson(
+        "/api/prices/bulk",
+        {
+          items: [
+            { yearMonth: "2026-04", unitPrice: 800_000 },
+            { yearMonth: "2026-13", unitPrice: 800_000 }, // 不正
+          ],
+        },
+        cookie,
+      );
+      expect(res.status).toBe(400);
+      const list = await request("/api/prices", {}, cookie);
+      expect((await list.json()) as { prices: unknown[] }).toEqual({ prices: [] });
+    });
+
+    it("年月の重複は 400", async () => {
+      const res = await postJson(
+        "/api/prices/bulk",
+        {
+          items: [
+            { yearMonth: "2026-04", unitPrice: 800_000 },
+            { yearMonth: "2026-04", unitPrice: 900_000 },
+          ],
+        },
+        cookie,
+      );
+      expect(res.status).toBe(400);
+    });
+  });
+
   describe("バリデーション（400）", () => {
     it("年月の形式が不正", async () => {
       for (const yearMonth of ["2026-13", "2026/01", "26-01", "2026-1", "abc"]) {

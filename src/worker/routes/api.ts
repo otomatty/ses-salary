@@ -327,6 +327,82 @@ apiApp.post("/api/prices", async (c) => {
   );
 });
 
+// --- POST /api/prices/bulk  (複数月をまとめて作成 or 更新) ---
+// 連続する月に同じ単価をまとめて入力する用途（例: 4〜6月を一括で 80万円）。
+apiApp.post("/api/prices/bulk", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json().catch(() => null);
+  const items: unknown = body?.items;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return c.json({ error: "入力する月単価がありません。" }, 400);
+  }
+  if (items.length > 120) {
+    return c.json({ error: "一度に入力できるのは120ヶ月までです。" }, 400);
+  }
+
+  // 全件バリデーション（1件でも不正なら何も保存しない）。
+  const normalized: { yearMonth: string; unitPrice: number }[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const yearMonth = (item as { yearMonth?: unknown })?.yearMonth;
+    const unitPrice = (item as { unitPrice?: unknown })?.unitPrice;
+    if (typeof yearMonth !== "string" || !isValidYearMonth(yearMonth)) {
+      return c.json({ error: "年月の形式が不正です（YYYY-MM）。" }, 400);
+    }
+    if (seen.has(yearMonth)) {
+      return c.json({ error: `年月が重複しています（${yearMonth}）。` }, 400);
+    }
+    seen.add(yearMonth);
+    if (
+      typeof unitPrice !== "number" ||
+      !Number.isFinite(unitPrice) ||
+      unitPrice < 0 ||
+      unitPrice > 100_000_000
+    ) {
+      return c.json(
+        { error: "単価は0以上の妥当な金額で入力してください。" },
+        400,
+      );
+    }
+    normalized.push({ yearMonth, unitPrice: Math.round(unitPrice) });
+  }
+
+  const db = getDb(c.env.DB);
+  const now = Date.now();
+  const existing = await db
+    .select()
+    .from(schema.monthlyPrices)
+    .where(eq(schema.monthlyPrices.userId, userId))
+    .all();
+  const byMonth = new Map(existing.map((r) => [r.yearMonth, r]));
+
+  const saved: MonthlyPriceDTO[] = [];
+  for (const { yearMonth, unitPrice } of normalized) {
+    const hit = byMonth.get(yearMonth);
+    if (hit) {
+      await db
+        .update(schema.monthlyPrices)
+        .set({ unitPrice, updatedAt: now })
+        .where(eq(schema.monthlyPrices.id, hit.id))
+        .run();
+      saved.push({ id: hit.id, yearMonth, unitPrice });
+    } else {
+      const id = newId();
+      await db
+        .insert(schema.monthlyPrices)
+        .values({ id, userId, yearMonth, unitPrice, updatedAt: now })
+        .run();
+      saved.push({ id, yearMonth, unitPrice });
+    }
+  }
+
+  // 来期の確定スナップショットを保存（PRD §9）。
+  await snapshotNextPeriod(c.env, userId);
+  saved.sort((a, b) => (a.yearMonth < b.yearMonth ? -1 : 1));
+  return c.json({ prices: saved }, 201);
+});
+
 // --- DELETE /api/prices/:id ---
 apiApp.delete("/api/prices/:id", async (c) => {
   const userId = c.get("userId");

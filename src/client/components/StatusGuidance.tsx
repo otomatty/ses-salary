@@ -2,10 +2,11 @@ import { Alert } from "@heroui/react";
 import type { SalaryStatus } from "@shared/calc";
 import { guidanceForStatus } from "@shared/guidance";
 
-/** status -> Alert のステータス色。consult は警告、fixed はアクセント。 */
+/** status -> Alert のステータス色。consult は警告、fixed/debut はアクセント。 */
 const STATUS_TONE = {
   consult: "warning",
   fixed: "accent",
+  debut: "accent",
 } as const;
 
 /**

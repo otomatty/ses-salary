@@ -9,6 +9,7 @@ import { findBand, type RateBand, type Rank } from "./rateTable";
 import {
   formatConsultFormula,
   formatFixedFormula,
+  formatDebutFormula,
   guidanceNote,
 } from "./guidance";
 
@@ -16,7 +17,8 @@ import {
 export type SalaryStatus =
   | "ok" // 通常計算（率 × 平均単価）
   | "fixed" // 固定額（40万円未満）
-  | "consult"; // 要相談（140万円以上, 自動計算対象外）
+  | "consult" // 要相談（140万円以上, 自動計算対象外）
+  | "debut"; // デビュー特例（四半期の途中でデビュー/入社し、対象四半期の単価が揃わない）
 
 export interface PricePoint {
   /** "YYYY-MM" */
@@ -48,6 +50,31 @@ export interface SalaryBreakdown {
 /** 円表示用フォーマッタ */
 export function formatYen(value: number): string {
   return value.toLocaleString("ja-JP");
+}
+
+/** 1万円 = 10,000 円。単価入力は「万円単位」で行う（UI 用）。 */
+export const MAN_YEN = 10_000;
+
+/** 万円 → 円。例: 80（万円） → 800,000（円） */
+export function manYenToYen(manYen: number): number {
+  return Math.round(manYen * MAN_YEN);
+}
+
+/** 円 → 万円。例: 800,000（円） → 80（万円）。割り切れない端数は小数で返す。 */
+export function yenToManYen(yen: number): number {
+  return yen / MAN_YEN;
+}
+
+/**
+ * 円を「◯◯万円」表記にする。端数（万円未満）がある場合のみ小数で表示する。
+ * 例: 800,000 → "80万円", 805,000 → "80.5万円"
+ */
+export function formatManYen(yen: number): string {
+  const man = yen / MAN_YEN;
+  const text = Number.isInteger(man)
+    ? String(man)
+    : man.toLocaleString("ja-JP", { maximumFractionDigits: 4 });
+  return `${text}万円`;
 }
 
 /** 還元率の表示（％, 小数2桁） */
@@ -137,6 +164,34 @@ export function calcSalary(months: PricePoint[], rank: Rank): SalaryBreakdown {
     salary,
     formula: `${formatYen(avg)} × ${formatRate(rate)} = ${formatYen(salary)}`,
     note: null,
+  };
+}
+
+/**
+ * デビュー特例の内訳を組み立てる（PRD 別紙「四半期の途中でデビューした場合」）。
+ *
+ * 四半期の途中（第2月・第3月）でエンジニアデビュー／入社すると、その四半期は
+ * 3ヶ月分の案件単価が揃わない。資料では、このデビュー四半期を基準とする
+ * （＝直後の）四半期の給与は還元率方式ではなく一律 235,000 円（アカデミア相当）と
+ * 定められている。揃った単価が1〜2ヶ月分しか無くても算出できるようにする。
+ *
+ * @param presentMonths 当該四半期で単価が登録されている月（1〜2件想定。表示用に保持）
+ */
+export function buildDebutBreakdown(presentMonths: PricePoint[]): SalaryBreakdown {
+  const avg = averageUnitPrice(presentMonths.map((m) => m.unitPrice));
+  // デビュー特例の支給額は固定額帯（40万円未満）と同額の一律 235,000 円。
+  const band = findBand(0);
+  const salary = band.fixedAmount ?? 0;
+  return {
+    months: presentMonths,
+    avgUnitPrice: avg,
+    rank: 1,
+    band,
+    status: "debut",
+    rate: null,
+    salary,
+    formula: formatDebutFormula(presentMonths.length, salary),
+    note: guidanceNote("debut"),
   };
 }
 
