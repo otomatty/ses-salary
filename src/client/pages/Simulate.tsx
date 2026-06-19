@@ -164,11 +164,17 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
             onSelectionChange={(k) => setMode(k as Mode)}
           >
             <Tabs.List>
-              <Tabs.Tab id="recent2">
+              <Tabs.Tab
+                id="recent2"
+                className="rounded-md transition-colors data-selected:bg-primary/10 data-selected:text-primary"
+              >
                 直近2ヶ月＋仮単価1ヶ月
                 <Tabs.Indicator />
               </Tabs.Tab>
-              <Tabs.Tab id="all3">
+              <Tabs.Tab
+                id="all3"
+                className="rounded-md transition-colors data-selected:bg-primary/10 data-selected:text-primary"
+              >
                 3ヶ月すべて仮入力
                 <Tabs.Indicator />
               </Tabs.Tab>

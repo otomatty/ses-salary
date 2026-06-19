@@ -286,8 +286,18 @@ export function PriceInputTabs({
       onSelectionChange={(key) => setTab(String(key) as PriceTab)}
     >
       <Tabs.List aria-label="単価の入力方法">
-        <Tabs.Tab id="single">単発入力</Tabs.Tab>
-        <Tabs.Tab id="bulk">一括入力</Tabs.Tab>
+        <Tabs.Tab
+          id="single"
+          className="rounded-md transition-colors data-selected:bg-primary/10 data-selected:text-primary"
+        >
+          単発入力
+        </Tabs.Tab>
+        <Tabs.Tab
+          id="bulk"
+          className="rounded-md transition-colors data-selected:bg-primary/10 data-selected:text-primary"
+        >
+          一括入力
+        </Tabs.Tab>
       </Tabs.List>
       <Tabs.Panel id="single" className="pt-4">
         <SinglePriceForm reload={reload} editTarget={editTarget} />
