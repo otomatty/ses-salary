@@ -63,26 +63,7 @@ export function Onboarding({
               案件の月単価から、四半期ごとの給与（額面）を自動で計算・予測・可視化します。
             </Card.Description>
           </Card.Header>
-          <Card.Content className="space-y-4">
-            <ul className="text-muted space-y-2 text-sm">
-              <li>
-                ・<strong className="text-foreground">月単価</strong>
-                を登録すると、直前四半期（3ヶ月）の平均単価から次の給与を計算します。
-              </li>
-              <li>
-                ・
-                <strong className="text-foreground">評価ランク</strong>
-                （人事評価の枝番）で還元率が決まります。単価に応じて G-1 / G-2 /
-                G-3 のように表示されます。あとからいつでも変更できます。
-              </li>
-              <li>
-                ・本アプリは<strong className="text-foreground">額面（総支給）</strong>
-                に特化しています。手取り・控除は含みません。
-              </li>
-            </ul>
-            <p className="text-muted text-xs">
-              まずは月単価を入力し、続けて評価ランクを設定しましょう。2〜3分で完了します。
-            </p>
+          <Card.Content>
             <div className="flex justify-end">
               <Button variant="primary" onPress={() => setStep(1)}>
                 はじめる →
