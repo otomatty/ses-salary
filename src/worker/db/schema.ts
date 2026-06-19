@@ -93,6 +93,8 @@ export const userSettings = sqliteTable("user_settings", {
   monthlyStandardHours: real("monthly_standard_hours").notNull(),
   // みなし残業時間のオーバーライド。null なら雇用形態から導出する。
   deemedOvertimeHours: real("deemed_overtime_hours"),
+  // M帯(要相談 / 140万円以上)の手動還元率(%)。null なら従来どおり要相談（自動計算外）。
+  consultRate: real("consult_rate"),
   updatedAt: integer("updated_at").notNull(),
 });
 

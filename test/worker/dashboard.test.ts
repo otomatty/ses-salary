@@ -92,4 +92,41 @@ describe("/api/dashboard", () => {
     expect(snap?.appliedBand).toBe("M");
     expect(snap?.salary).toBeNull();
   });
+
+  it("M帯でも手動還元率(consultRate)を設定すると率×平均単価で自動計算する", async () => {
+    for (const ym of currentQMonths) {
+      await postJson("/api/prices", { yearMonth: ym, unitPrice: 1_400_000 }, cookie);
+    }
+    // M帯の手動還元率を 56% に設定（設定は consultRate を含めて往復する）。
+    const setRes = await postJson(
+      "/api/settings",
+      {
+        employmentType: "fulltime_engineer",
+        monthlyStandardHours: 160,
+        deemedOvertimeHours: null,
+        consultRate: 56,
+      },
+      cookie,
+    );
+    expect(setRes.status).toBe(200);
+    const setBody = (await setRes.json()) as {
+      settings: { consultRate: number | null };
+    };
+    expect(setBody.settings.consultRate).toBe(56);
+
+    const res = await request("/api/dashboard", {}, cookie);
+    const body = (await res.json()) as {
+      next: { breakdown: { status: string; salary: number | null } } | null;
+      settings: { consultRate: number | null };
+      savedResults: { appliedBand: string; status: string; salary: number | null }[];
+    };
+    expect(body.settings.consultRate).toBe(56);
+    expect(body.next?.breakdown.status).toBe("ok");
+    expect(body.next?.breakdown.salary).toBe(Math.round(1_400_000 * 0.56));
+
+    const snap = body.savedResults.at(-1);
+    expect(snap?.appliedBand).toBe("M");
+    expect(snap?.status).toBe("ok");
+    expect(snap?.salary).toBe(Math.round(1_400_000 * 0.56));
+  });
 });

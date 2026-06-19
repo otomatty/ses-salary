@@ -47,6 +47,8 @@ export interface UserSettingsDTO {
   monthlyStandardHours: number;
   /** みなし残業時間のオーバーライド（null なら雇用形態から導出） */
   deemedOvertimeHours: number | null;
+  /** M帯(要相談 / 140万円以上)の手動還元率(%)。null なら従来どおり要相談（自動計算外） */
+  consultRate: number | null;
 }
 
 /** 月の額面実支給見込み（基本給 + 手当 + 残業）の内訳。 */

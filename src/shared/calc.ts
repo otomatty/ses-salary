@@ -98,13 +98,38 @@ export function averageUnitPrice(prices: number[]): number {
  *
  * @param months 対象3ヶ月（古い順でも新しい順でも可。表示用にそのまま保持する）
  * @param rank   適用する評価ランク（1/2/3）
+ * @param consultRate M帯(要相談)で手動入力した還元率(%)。正の値なら要相談ではなく
+ *                    「率 × 平均単価」で計算する。null/未指定なら従来どおり要相談。
  */
-export function calcSalary(months: PricePoint[], rank: Rank): SalaryBreakdown {
+export function calcSalary(
+  months: PricePoint[],
+  rank: Rank,
+  consultRate?: number | null,
+): SalaryBreakdown {
   const avg = averageUnitPrice(months.map((m) => m.unitPrice));
   const band = findBand(avg);
 
   // 要相談（140万円以上）
   if (band.kind === "consult") {
+    // 手動還元率が入力されていれば、要相談ではなく率方式で自動計算する。
+    if (consultRate != null && Number.isFinite(consultRate) && consultRate > 0) {
+      const salary = Math.round((avg * consultRate) / 100);
+      return {
+        months,
+        avgUnitPrice: avg,
+        rank,
+        band,
+        status: "ok",
+        rate: consultRate,
+        salary,
+        formula: `${formatYen(avg)} × ${formatRate(consultRate)} = ${formatYen(
+          salary,
+        )}（M帯手動率）`,
+        note: `M（要相談）帯のため、手動で入力した還元率 ${formatRate(
+          consultRate,
+        )} で計算しています。`,
+      };
+    }
     return {
       months,
       avgUnitPrice: avg,

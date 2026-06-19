@@ -61,6 +61,8 @@ export function EmploymentForm({
         monthlyStandardHours,
         // みなし時間は雇用形態から導出する（オーバーライドは使わない）。
         deemedOvertimeHours: null,
+        // M帯の手動還元率はこのフォームでは触らないため、現在値をそのまま送って維持する。
+        consultRate: settings.consultRate,
       });
       await reload();
     } catch (e) {
