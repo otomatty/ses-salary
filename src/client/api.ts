@@ -1,16 +1,29 @@
 /** API クライアント（fetch ラッパ）。Cookie セッションを使うため credentials: same-origin。 */
 
 import type {
-  AllowanceDTO,
   DashboardResponse,
   MeResponse,
-  MonthlyOvertimeDTO,
   MonthlyPriceDTO,
   SalaryResultDTO,
   UserSettingsDTO,
 } from "@shared/types";
 import type { Rank } from "@shared/rateTable";
 import type { EmploymentTypeKey } from "@shared/income";
+
+/** 月別保存（単価・残業・手当をまとめて）のペイロード。 */
+export interface MonthInput {
+  unitPrice: number;
+  overtime: {
+    normalHours: number;
+    nightHours: number;
+    holidayHours: number;
+  };
+  allowances: {
+    name: string;
+    amount: number;
+    includeInOvertimeBase: boolean;
+  }[];
+}
 
 async function request<T>(
   path: string,
@@ -57,8 +70,16 @@ export const api = {
       body: JSON.stringify({ items }),
     }),
 
-  deletePrice: (id: string) =>
-    request<{ ok: true }>(`/api/prices/${id}`, { method: "DELETE" }),
+  /** その月の単価・残業・手当をまとめて保存（upsert）する。 */
+  saveMonth: (yearMonth: string, input: MonthInput) =>
+    request<{ ok: true }>(`/api/months/${yearMonth}`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  /** その月の入力（単価・残業・手当）をすべて削除する。 */
+  deleteMonth: (yearMonth: string) =>
+    request<{ ok: true }>(`/api/months/${yearMonth}`, { method: "DELETE" }),
 
   saveRank: (rank: Rank, effectiveFrom?: string) =>
     request<{ rank: { id: string; effectiveFrom: string; rank: Rank } }>(
@@ -71,34 +92,6 @@ export const api = {
 
   deleteRank: (id: string) =>
     request<{ ok: true }>(`/api/rank/${id}`, { method: "DELETE" }),
-
-  saveAllowance: (input: {
-    name: string;
-    effectiveFrom: string;
-    amount: number;
-    includeInOvertimeBase: boolean;
-  }) =>
-    request<{ allowance: AllowanceDTO }>("/api/allowances", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-
-  deleteAllowance: (id: string) =>
-    request<{ ok: true }>(`/api/allowances/${id}`, { method: "DELETE" }),
-
-  saveOvertime: (input: {
-    yearMonth: string;
-    normalHours: number;
-    nightHours: number;
-    holidayHours: number;
-  }) =>
-    request<{ overtime: MonthlyOvertimeDTO }>("/api/overtime", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-
-  deleteOvertime: (id: string) =>
-    request<{ ok: true }>(`/api/overtime/${id}`, { method: "DELETE" }),
 
   saveSettings: (input: {
     employmentType: EmploymentTypeKey;

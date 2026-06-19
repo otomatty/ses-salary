@@ -11,19 +11,19 @@ describe("DELETE /api/user/data", () => {
     // 単価3ヶ月分とランクを投入（スナップショットも生成される）
     await postJson("/api/prices", { yearMonth: "2025-10", unitPrice: 700000 }, cookie);
     await postJson("/api/prices", { yearMonth: "2025-11", unitPrice: 720000 }, cookie);
-    await postJson("/api/prices", { yearMonth: "2025-12", unitPrice: 710000 }, cookie);
+    // 2025-12 は単価・残業・手当をまとめて投入（月別入力）
+    await postJson(
+      "/api/months/2025-12",
+      {
+        unitPrice: 710000,
+        overtime: { normalHours: 25, nightHours: 0, holidayHours: 0 },
+        allowances: [
+          { name: "役職手当", amount: 30000, includeInOvertimeBase: false },
+        ],
+      },
+      cookie,
+    );
     await postJson("/api/rank", { rank: 2, effectiveFrom: "2025-10" }, cookie);
-    // 残業・手当・設定も投入
-    await postJson(
-      "/api/allowances",
-      { name: "役職手当", effectiveFrom: "2025-10", amount: 30000, includeInOvertimeBase: false },
-      cookie,
-    );
-    await postJson(
-      "/api/overtime",
-      { yearMonth: "2025-12", normalHours: 25, nightHours: 0, holidayHours: 0 },
-      cookie,
-    );
     await postJson(
       "/api/settings",
       { employmentType: "contract_academia", monthlyStandardHours: 150, deemedOvertimeHours: null },

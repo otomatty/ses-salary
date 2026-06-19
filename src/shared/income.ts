@@ -10,6 +10,13 @@
  * かつ、みなし残業（固定時間外手当）として基本給に含まれる時間分は二重計上せず、
  * **みなし時間を超えた分のみ** を別途支給する。
  *
+ * 【重要】ここでの `baseSalary` は calc.ts（単価 × 還元率）が返す額で、これは給与辞令・
+ * 給与明細で言う「基本給 + 固定残業代（みなし時間分）」を内包する。つまり
+ *   baseSalary = 純基本給 + (純基本給 + 職務手当) ÷ 所定 × 1.25 × みなし時間
+ * の関係にある。したがって時給基礎を求めるには所定で割るのではなく、
+ * **(所定 + 1.25 × みなし時間)** で割る必要がある（これで固定残業代の二重計上を避けつつ
+ * 純基本給ベースの時給に一致する）。実際の給与明細でこの式の一致を確認済み。
+ *
  * calc.ts と同じく「計算過程（時給基礎・各区分の時間と金額）」を内訳として返し、
  * 透明性（検算可能性）を保つ。
  */
@@ -102,25 +109,17 @@ export function deemedHoursOf(settings: UserSettings): number {
   return findEmploymentType(settings.employmentType).deemedOvertimeHours;
 }
 
-/** 手当の履歴エントリ（適用開始月ごと。amount 0 で廃止を表す）。 */
-export interface AllowanceEntry {
+/** 月ごとの手当1件（その月に支給される手当）。 */
+export interface MonthlyAllowanceItem {
   name: string;
-  /** "YYYY-MM" */
-  effectiveFrom: string;
-  /** 円。0 は「その月以降は廃止」を表す。 */
+  /** 円 */
   amount: number;
   /** 残業単価の基礎（基本給 + 職務手当）に算入するか。 */
   includeInOvertimeBase: boolean;
 }
 
-export interface ActiveAllowance {
-  name: string;
-  amount: number;
-  includeInOvertimeBase: boolean;
-}
-
-export interface ActiveAllowances {
-  items: ActiveAllowance[];
+export interface AllowanceSummary {
+  items: MonthlyAllowanceItem[];
   /** 当月の手当合計（円） */
   total: number;
   /** 残業基礎に算入する手当の合計（職務手当など, 円） */
@@ -128,35 +127,24 @@ export interface ActiveAllowances {
 }
 
 /**
- * 指定の年月時点で有効な手当を、手当名ごとに「適用開始月が対象月以前で最新のもの」を
- * 採用して集計する（rankAt と同じ『最新が有効』ロジックを手当名単位で適用）。
- * amount 0 は廃止として除外する。
+ * その月の手当一覧（月別入力）を集計する。
+ * amount 0 以下は集計・表示から除外する。手当名の昇順で並べる。
  */
-export function activeAllowances(
-  history: AllowanceEntry[],
-  ym: string,
-): ActiveAllowances {
-  const latestByName = new Map<string, AllowanceEntry>();
-  for (const e of history) {
-    if (e.effectiveFrom > ym) continue; // 未来の改定は対象外
-    const cur = latestByName.get(e.name);
-    if (!cur || e.effectiveFrom > cur.effectiveFrom) {
-      latestByName.set(e.name, e);
-    }
-  }
-
-  const items: ActiveAllowance[] = [];
+export function sumAllowances(
+  allowances: MonthlyAllowanceItem[],
+): AllowanceSummary {
+  const items: MonthlyAllowanceItem[] = [];
   let total = 0;
   let overtimeBaseTotal = 0;
-  for (const e of latestByName.values()) {
-    if (e.amount <= 0) continue; // 廃止
+  for (const a of allowances) {
+    if (!Number.isFinite(a.amount) || a.amount <= 0) continue;
     items.push({
-      name: e.name,
-      amount: e.amount,
-      includeInOvertimeBase: e.includeInOvertimeBase,
+      name: a.name,
+      amount: a.amount,
+      includeInOvertimeBase: a.includeInOvertimeBase,
     });
-    total += e.amount;
-    if (e.includeInOvertimeBase) overtimeBaseTotal += e.amount;
+    total += a.amount;
+    if (a.includeInOvertimeBase) overtimeBaseTotal += a.amount;
   }
   items.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   return { items, total, overtimeBaseTotal };
@@ -177,6 +165,8 @@ export interface OvertimeBreakdown {
   hourlyBase: number;
   /** みなし残業時間（この値までは基本給に含まれる） */
   deemedHours: number;
+  /** 固定残業代（みなし時間分。baseSalary に内包されている額, 円, 四捨五入後） */
+  deemedPay: number;
   /** 支給対象の通常残業時間（みなし超過分） */
   billableNormalHours: number;
   /** 1.25倍を適用する時間 */
@@ -202,7 +192,10 @@ export interface OvertimePayParams {
 
 /**
  * 残業代を算出する。
- * 時給基礎 = (基本給 + 残業基礎手当) ÷ 月平均所定労働時間。
+ *
+ * 時給基礎 = (基本給 + 残業基礎手当) ÷ (月平均所定労働時間 + 1.25 × みなし時間)。
+ * baseSalary は固定残業代（みなし時間分）を内包するため、分母にみなし分を加えて
+ * 純基本給ベースの時給に一致させる（モジュール冒頭の説明を参照）。
  * 通常時間外はみなし超過分のみ支給し、月60時間を超える部分は 1.5 倍を適用する。
  */
 export function calcOvertimePay(p: OvertimePayParams): OvertimeBreakdown {
@@ -210,10 +203,17 @@ export function calcOvertimePay(p: OvertimePayParams): OvertimeBreakdown {
     p.monthlyStandardHours > 0
       ? p.monthlyStandardHours
       : DEFAULT_MONTHLY_STANDARD_HOURS;
-  const hourlyBase = (p.baseSalary + p.overtimeBaseAllowance) / monthlyStandardHours;
+  const deemedHours = Math.max(0, p.deemedHours);
+  // baseSalary に内包される固定残業代を二重計上しないよう、分母にみなし分(1.25倍)を加える。
+  const denominator =
+    monthlyStandardHours + OVERTIME_MULTIPLIERS.normal * deemedHours;
+  const hourlyBase = (p.baseSalary + p.overtimeBaseAllowance) / denominator;
+  // baseSalary に含まれる固定残業代（みなし時間分）。表示用に分解する。
+  const deemedPay = Math.round(
+    hourlyBase * OVERTIME_MULTIPLIERS.normal * deemedHours,
+  );
 
   const normalHours = Math.max(0, p.normalHours);
-  const deemedHours = Math.max(0, p.deemedHours);
   // みなし時間を超えた分のみ支給対象（基本給に含まれるみなし分を二重計上しない）。
   const billableNormalHours = Math.max(0, normalHours - deemedHours);
   // 月60時間を超えた部分は 1.5 倍。支給対象（みなし超過）の範囲内でのみ計上する。
@@ -235,6 +235,7 @@ export function calcOvertimePay(p: OvertimePayParams): OvertimeBreakdown {
   return {
     hourlyBase,
     deemedHours,
+    deemedPay,
     billableNormalHours,
     normalHours125,
     normalHours150,
@@ -255,8 +256,8 @@ export interface MonthlyIncomeBreakdown {
   overtimePay: number;
   /** 月の額面実支給見込み = 基本給 + 手当 + 残業代（円） */
   gross: number;
-  /** 当月有効な手当の明細 */
-  allowances: ActiveAllowance[];
+  /** 当月の手当の明細 */
+  allowances: MonthlyAllowanceItem[];
   /** 残業代の内訳 */
   overtime: OvertimeBreakdown;
 }
@@ -264,21 +265,22 @@ export interface MonthlyIncomeBreakdown {
 /**
  * 基本給・手当・残業の生データから、月の額面実支給見込みを組み立てる。
  * baseSalary が null（要相談など算出不能）の場合は null を返す。
+ * allowances はその月に支給される手当の一覧（月別入力）。
  */
 export function buildMonthlyIncome(params: {
   yearMonth: string;
   baseSalary: number | null;
   settings: UserSettings;
-  allowanceHistory: AllowanceEntry[];
+  allowances: MonthlyAllowanceItem[];
   overtime: OvertimeHours | null;
 }): MonthlyIncomeBreakdown | null {
-  const { yearMonth, baseSalary, settings, allowanceHistory, overtime } = params;
+  const { yearMonth, baseSalary, settings, allowances, overtime } = params;
   if (baseSalary === null) return null;
 
-  const allowances = activeAllowances(allowanceHistory, yearMonth);
+  const summary = sumAllowances(allowances);
   const ot = calcOvertimePay({
     baseSalary,
-    overtimeBaseAllowance: allowances.overtimeBaseTotal,
+    overtimeBaseAllowance: summary.overtimeBaseTotal,
     monthlyStandardHours: settings.monthlyStandardHours,
     deemedHours: deemedHoursOf(settings),
     normalHours: overtime?.normalHours ?? 0,
@@ -289,10 +291,10 @@ export function buildMonthlyIncome(params: {
   return {
     yearMonth,
     baseSalary,
-    allowanceTotal: allowances.total,
+    allowanceTotal: summary.total,
     overtimePay: ot.pay,
-    gross: baseSalary + allowances.total + ot.pay,
-    allowances: allowances.items,
+    gross: baseSalary + summary.total + ot.pay,
+    allowances: summary.items,
     overtime: ot,
   };
 }
