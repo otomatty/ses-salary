@@ -64,15 +64,10 @@ describe("/api/prices", () => {
     expect(body.price.unitPrice).toBe(1_000_001);
   });
 
-  it("DELETE で削除できる", async () => {
-    const created = await postJson(
-      "/api/prices",
-      { yearMonth: "2026-01", unitPrice: 1 },
-      cookie,
-    );
-    const id = ((await created.json()) as { price: { id: string } }).price.id;
+  it("DELETE /api/months/:yearMonth で削除できる", async () => {
+    await postJson("/api/prices", { yearMonth: "2026-01", unitPrice: 1 }, cookie);
 
-    const del = await request(`/api/prices/${id}`, { method: "DELETE" }, cookie);
+    const del = await request("/api/months/2026-01", { method: "DELETE" }, cookie);
     expect(del.status).toBe(200);
 
     const list = await request("/api/prices", {}, cookie);

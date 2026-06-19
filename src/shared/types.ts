@@ -23,11 +23,11 @@ export interface RankHistoryDTO {
   rank: Rank;
 }
 
-/** 特別手当の履歴エントリ（適用開始月ごと。amount 0 で廃止）。 */
+/** 月ごとの手当エントリ（年月 × 手当名ごと）。 */
 export interface AllowanceDTO {
   id: string;
+  yearMonth: string; // "YYYY-MM"
   name: string;
-  effectiveFrom: string; // "YYYY-MM"
   amount: number; // 円
   includeInOvertimeBase: boolean;
 }

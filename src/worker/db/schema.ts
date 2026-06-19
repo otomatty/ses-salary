@@ -8,9 +8,12 @@ export const users = sqliteTable("users", {
   createdAt: integer("created_at").notNull(), // unix ms
 });
 
-/** 月単価（年月ごとに1件） */
-export const monthlyPrices = sqliteTable(
-  "monthly_prices",
+/**
+ * 月ごとの入力（単価＋残業時間）を1行に統合（年月ごとに1件）。
+ * 「月ごとに単価・残業・手当を入力する」月別ページの主データ。
+ */
+export const monthlyEntries = sqliteTable(
+  "monthly_entries",
   {
     id: text("id").primaryKey(),
     userId: text("user_id")
@@ -18,10 +21,14 @@ export const monthlyPrices = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     yearMonth: text("year_month").notNull(), // "YYYY-MM"
     unitPrice: integer("unit_price").notNull(), // 円
+    // 月次の残業時間（区分別）。未入力は 0。
+    overtimeNormalHours: real("overtime_normal_hours").notNull().default(0),
+    overtimeNightHours: real("overtime_night_hours").notNull().default(0),
+    overtimeHolidayHours: real("overtime_holiday_hours").notNull().default(0),
     updatedAt: integer("updated_at").notNull(),
   },
   (t) => ({
-    userMonthUnique: uniqueIndex("monthly_prices_user_month_unique").on(
+    userMonthUnique: uniqueIndex("monthly_entries_user_month_unique").on(
       t.userId,
       t.yearMonth,
     ),
@@ -89,54 +96,31 @@ export const userSettings = sqliteTable("user_settings", {
   updatedAt: integer("updated_at").notNull(),
 });
 
-/** 特別手当の履歴（手当名 × 適用開始年月ごと）。amount 0 は廃止を表す。 */
-export const allowanceHistory = sqliteTable(
-  "allowance_history",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    effectiveFrom: text("effective_from").notNull(), // "YYYY-MM"
-    amount: integer("amount").notNull(), // 円（0 = 廃止）
-    // 残業単価の基礎（基本給 + 職務手当）に算入するか（0|1）。
-    includeInOvertimeBase: integer("include_in_overtime_base").notNull(),
-    updatedAt: integer("updated_at").notNull(),
-  },
-  (t) => ({
-    userNameEffectiveUnique: uniqueIndex(
-      "allowance_history_user_name_effective_unique",
-    ).on(t.userId, t.name, t.effectiveFrom),
-  }),
-);
-
-/** 月次の残業時間（年月ごとに1件）。 */
-export const monthlyOvertime = sqliteTable(
-  "monthly_overtime",
+/** 月ごとの手当（年月 × 手当名ごとに1件）。月別入力。 */
+export const monthlyAllowances = sqliteTable(
+  "monthly_allowances",
   {
     id: text("id").primaryKey(),
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     yearMonth: text("year_month").notNull(), // "YYYY-MM"
-    normalHours: real("normal_hours").notNull(),
-    nightHours: real("night_hours").notNull(),
-    holidayHours: real("holiday_hours").notNull(),
+    name: text("name").notNull(),
+    amount: integer("amount").notNull(), // 円
+    // 残業単価の基礎（基本給 + 職務手当）に算入するか（0|1）。
+    includeInOvertimeBase: integer("include_in_overtime_base").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
   (t) => ({
-    userMonthUnique: uniqueIndex("monthly_overtime_user_month_unique").on(
-      t.userId,
-      t.yearMonth,
-    ),
+    userMonthNameUnique: uniqueIndex(
+      "monthly_allowances_user_month_name_unique",
+    ).on(t.userId, t.yearMonth, t.name),
   }),
 );
 
 export type UserRow = typeof users.$inferSelect;
-export type MonthlyPriceRow = typeof monthlyPrices.$inferSelect;
+export type MonthlyEntryRow = typeof monthlyEntries.$inferSelect;
 export type RankHistoryRow = typeof rankHistory.$inferSelect;
 export type SalaryResultRow = typeof salaryResults.$inferSelect;
 export type UserSettingsRow = typeof userSettings.$inferSelect;
-export type AllowanceHistoryRow = typeof allowanceHistory.$inferSelect;
-export type MonthlyOvertimeRow = typeof monthlyOvertime.$inferSelect;
+export type MonthlyAllowanceRow = typeof monthlyAllowances.$inferSelect;

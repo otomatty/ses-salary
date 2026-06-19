@@ -84,8 +84,8 @@ export function Home({
       {/* 各画面への入口 */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <NavTile
-          title="月単価の入力"
-          desc="各月の単価を追加・編集"
+          title="月別入力"
+          desc="各月の単価・残業・手当を入力"
           onClick={() => navigate({ to: "/prices" })}
         />
         <NavTile
