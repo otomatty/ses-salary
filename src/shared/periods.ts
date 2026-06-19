@@ -191,6 +191,7 @@ export function computeSalaryForQuarter(
   priceMap: Map<string, number>,
   rankHistory: RankHistoryEntry[],
   rankFallback: Rank = 1,
+  consultRate?: number | null,
 ): SalaryResult | null {
   const targetStart = quarterStartMonth(quarterStart);
   const sourceQuarterStart = prevQuarterStart(targetStart);
@@ -207,7 +208,7 @@ export function computeSalaryForQuarter(
     return {
       appliedFrom: targetStart,
       periodLabel: quarterLabel(targetStart),
-      breakdown: calcSalary(points, rank),
+      breakdown: calcSalary(points, rank, consultRate),
       rankProvisional: isRankProvisional(rankHistory, targetStart),
     };
   }
@@ -294,6 +295,7 @@ export function buildNextPeriodSnapshot(
   prices: PricePoint[],
   rankHistory: RankHistoryEntry[],
   rankFallback: Rank = 1,
+  consultRate?: number | null,
 ): SalarySnapshot | null {
   if (prices.length === 0) return null;
   const sorted = [...prices].sort((a, b) =>
@@ -308,6 +310,7 @@ export function buildNextPeriodSnapshot(
     priceMap,
     rankHistory,
     rankFallback,
+    consultRate,
   );
   if (!result) return null;
   return toSnapshot(result);
@@ -322,6 +325,7 @@ export function buildSalaryHistory(
   prices: PricePoint[],
   rankHistory: RankHistoryEntry[],
   rankFallback: Rank = 1,
+  consultRate?: number | null,
 ): SalaryResult[] {
   // デビュー特例（1〜2ヶ月のみ）でも給与が出るため、空でなければ走査する。
   // 算出不能な四半期は computeSalaryForQuarter が null を返してスキップされる。
@@ -344,6 +348,7 @@ export function buildSalaryHistory(
       priceMap,
       rankHistory,
       rankFallback,
+      consultRate,
     );
     if (r) results.push(r);
     cursor = nextQuarterStart(cursor);
@@ -362,6 +367,9 @@ export function buildAllPeriodSnapshots(
   prices: PricePoint[],
   rankHistory: RankHistoryEntry[],
   rankFallback: Rank = 1,
+  consultRate?: number | null,
 ): SalarySnapshot[] {
-  return buildSalaryHistory(prices, rankHistory, rankFallback).map(toSnapshot);
+  return buildSalaryHistory(prices, rankHistory, rankFallback, consultRate).map(
+    toSnapshot,
+  );
 }

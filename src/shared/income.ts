@@ -93,12 +93,15 @@ export interface UserSettings {
   monthlyStandardHours: number;
   /** 雇用形態から導かれるみなし時間を上書きする値。null なら雇用形態に従う。 */
   deemedOvertimeHours: number | null;
+  /** M帯(要相談 / 140万円以上)の手動還元率(%)。null なら従来どおり要相談（自動計算外）。 */
+  consultRate: number | null;
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   employmentType: DEFAULT_EMPLOYMENT_TYPE,
   monthlyStandardHours: DEFAULT_MONTHLY_STANDARD_HOURS,
   deemedOvertimeHours: null,
+  consultRate: null,
 };
 
 /** 実際に適用するみなし残業時間（オーバーライド優先、無ければ雇用形態から）。 */

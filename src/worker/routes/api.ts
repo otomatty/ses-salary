@@ -135,6 +135,7 @@ function toSettingsDTO(r: UserSettingsRow | undefined): UserSettingsDTO {
       : DEFAULT_USER_SETTINGS.employmentType,
     monthlyStandardHours: r.monthlyStandardHours,
     deemedOvertimeHours: r.deemedOvertimeHours,
+    consultRate: r.consultRate,
   };
 }
 
@@ -239,7 +240,10 @@ async function loadSavedResults(
  * 単価/ランクの保存後に呼ぶ。算出可能な四半期が無い場合は何もしない。
  */
 async function reconcileSnapshots(env: Env, userId: string): Promise<void> {
-  const { priceDTOs, rankDTOs } = await loadUserData(env, userId);
+  const [{ priceDTOs, rankDTOs }, { settings }] = await Promise.all([
+    loadUserData(env, userId),
+    loadIncomeData(env, userId),
+  ]);
   const pricePoints: PricePoint[] = priceDTOs.map((p) => ({
     yearMonth: p.yearMonth,
     unitPrice: p.unitPrice,
@@ -249,7 +253,12 @@ async function reconcileSnapshots(env: Env, userId: string): Promise<void> {
     rank: r.rank,
   }));
 
-  const snaps = buildAllPeriodSnapshots(pricePoints, rankHistory);
+  const snaps = buildAllPeriodSnapshots(
+    pricePoints,
+    rankHistory,
+    1,
+    settings.consultRate,
+  );
   if (snaps.length === 0) return;
 
   const db = getDb(env.DB);
@@ -318,9 +327,16 @@ apiApp.get("/api/dashboard", async (c) => {
   const currentQuarter = quarterStartMonth(thisMonth);
   const currentRank = rankAt(rankHistory, thisMonth);
   const rankProvisional = isRankProvisional(rankHistory, thisMonth);
+  const consultRate = incomeData.settings.consultRate;
 
   // 今期: 現在の四半期に適用される給与（直前四半期の平均単価が基準）
-  const current = computeSalaryForQuarter(currentQuarter, priceMap, rankHistory);
+  const current = computeSalaryForQuarter(
+    currentQuarter,
+    priceMap,
+    rankHistory,
+    1,
+    consultRate,
+  );
 
   // 来期: 次の四半期に適用される給与（今四半期の平均単価が基準）
   const nextQuarter = nextQuarterStart(currentQuarter);
@@ -330,7 +346,13 @@ apiApp.get("/api/dashboard", async (c) => {
     nextPending =
       "月単価がまだ登録されていません。まずは1四半期（3ヶ月）分の単価を入力してください。";
   } else {
-    next = computeSalaryForQuarter(nextQuarter, priceMap, rankHistory);
+    next = computeSalaryForQuarter(
+      nextQuarter,
+      priceMap,
+      rankHistory,
+      1,
+      consultRate,
+    );
     if (!next) {
       nextPending = `来期（${quarterLabel(nextQuarter)}）の予測には、今四半期（${quarterLabel(
         currentQuarter,
@@ -338,7 +360,7 @@ apiApp.get("/api/dashboard", async (c) => {
     }
   }
 
-  const history = buildSalaryHistory(pricePoints, rankHistory);
+  const history = buildSalaryHistory(pricePoints, rankHistory, 1, consultRate);
 
   // 当月の月収内訳（基本給 + 手当 + 残業）。基本給は今期の四半期給与を当月分として使う。
   const settings: UserSettings = incomeData.settings;
@@ -732,6 +754,7 @@ apiApp.post("/api/settings", async (c) => {
   const employmentType = body?.employmentType;
   const monthlyStandardHours = body?.monthlyStandardHours;
   const deemedOvertimeHours = body?.deemedOvertimeHours ?? null;
+  const consultRate = body?.consultRate ?? null;
 
   if (!isEmploymentTypeKey(employmentType)) {
     return c.json({ error: "雇用形態の指定が不正です。" }, 400);
@@ -759,6 +782,18 @@ apiApp.post("/api/settings", async (c) => {
       400,
     );
   }
+  if (
+    consultRate !== null &&
+    (typeof consultRate !== "number" ||
+      !Number.isFinite(consultRate) ||
+      consultRate < 0 ||
+      consultRate > 100)
+  ) {
+    return c.json(
+      { error: "M帯の還元率は0〜100の妥当な数値で入力してください。" },
+      400,
+    );
+  }
 
   const db = getDb(c.env.DB);
   const now = Date.now();
@@ -769,6 +804,7 @@ apiApp.post("/api/settings", async (c) => {
       employmentType,
       monthlyStandardHours,
       deemedOvertimeHours,
+      consultRate,
       updatedAt: now,
     })
     .onConflictDoUpdate({
@@ -777,16 +813,21 @@ apiApp.post("/api/settings", async (c) => {
         employmentType,
         monthlyStandardHours,
         deemedOvertimeHours,
+        consultRate,
         updatedAt: now,
       },
     })
     .run();
+
+  // 還元率(consultRate)の変更で給与額が変わり得るため、保存済みスナップショットを再計算する。
+  await reconcileSnapshots(c.env, userId);
 
   return c.json({
     settings: {
       employmentType,
       monthlyStandardHours,
       deemedOvertimeHours,
+      consultRate,
     } satisfies UserSettingsDTO,
   });
 });

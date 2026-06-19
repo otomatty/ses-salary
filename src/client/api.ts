@@ -97,6 +97,7 @@ export const api = {
     employmentType: EmploymentTypeKey;
     monthlyStandardHours: number;
     deemedOvertimeHours: number | null;
+    consultRate: number | null;
   }) =>
     request<{ settings: UserSettingsDTO }>("/api/settings", {
       method: "POST",

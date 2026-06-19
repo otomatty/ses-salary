@@ -6,11 +6,13 @@ import { PriceInputTabs } from "../components/PriceForms";
 import { RankForm } from "../components/RankForm";
 import { markOnboardingDone } from "../lib/onboarding";
 
-const STEP_LABELS = ["ようこそ", "評価ランク", "月単価の入力", "完了"] as const;
+const STEP_LABELS = ["ようこそ", "月単価の入力", "評価ランク", "完了"] as const;
 
 /**
  * 初回利用者向けのオンボーディング専用ページ。
- * 「①アプリ説明 → ②評価ランク設定 → ③月単価入力 → ④完了」の順に案内する。
+ * 「①アプリ説明 → ②月単価入力 → ③評価ランク設定 → ④完了」の順に案内する。
+ * 先に月単価を入力することで、続く評価ランク設定で単価に応じた帯付きランク
+ * （例: G-1 / G-2 / G-3）を提示できる。
  * 各ステップはスキップ可能で、完了/スキップ時に {@link markOnboardingDone} を記録する。
  */
 export function Onboarding({
@@ -70,7 +72,8 @@ export function Onboarding({
               <li>
                 ・
                 <strong className="text-foreground">評価ランク</strong>
-                （人事評価の枝番）で還元率が決まります。あとからいつでも変更できます。
+                （人事評価の枝番）で還元率が決まります。単価に応じて G-1 / G-2 /
+                G-3 のように表示されます。あとからいつでも変更できます。
               </li>
               <li>
                 ・本アプリは<strong className="text-foreground">額面（総支給）</strong>
@@ -78,7 +81,7 @@ export function Onboarding({
               </li>
             </ul>
             <p className="text-muted text-xs">
-              まずは評価ランクを設定し、続けて月単価を入力しましょう。2〜3分で完了します。
+              まずは月単価を入力し、続けて評価ランクを設定しましょう。2〜3分で完了します。
             </p>
             <div className="flex justify-end">
               <Button variant="primary" onPress={() => setStep(1)}>
@@ -92,39 +95,7 @@ export function Onboarding({
       {step === 1 && (
         <Card>
           <Card.Header>
-            <Card.Title className="text-sm">① 評価ランクを設定</Card.Title>
-            <Card.Description className="text-xs">
-              人事評価で決まる評価ランクを選びます。未設定のままだと暫定ランク1で計算されます。
-            </Card.Description>
-          </Card.Header>
-          <Card.Content>
-            <RankForm
-              initialRank={dashboard.currentRank}
-              reload={reload}
-              saveLabel="保存して次へ →"
-              onSaved={() => setStep(2)}
-              footer={(saveButton) => (
-                <div className="flex items-center justify-between">
-                  <Button variant="ghost" onPress={() => setStep(0)}>
-                    ← 戻る
-                  </Button>
-                  <div className="flex gap-2">
-                    <Button variant="secondary" onPress={() => setStep(2)}>
-                      あとで設定
-                    </Button>
-                    {saveButton}
-                  </div>
-                </div>
-              )}
-            />
-          </Card.Content>
-        </Card>
-      )}
-
-      {step === 2 && (
-        <Card>
-          <Card.Header>
-            <Card.Title className="text-sm">② 月単価を入力</Card.Title>
+            <Card.Title className="text-sm">① 月単価を入力</Card.Title>
             <Card.Description className="text-xs">
               直近の案件単価を登録しましょう。連続する月が同じ単価なら「一括入力」が便利です。
             </Card.Description>
@@ -138,13 +109,49 @@ export function Onboarding({
             </p>
 
             <div className="flex items-center justify-between">
-              <Button variant="ghost" onPress={() => setStep(1)}>
+              <Button variant="ghost" onPress={() => setStep(0)}>
                 ← 戻る
               </Button>
-              <Button variant="primary" onPress={() => setStep(3)}>
+              <Button variant="primary" onPress={() => setStep(2)}>
                 次へ →
               </Button>
             </div>
+          </Card.Content>
+        </Card>
+      )}
+
+      {step === 2 && (
+        <Card>
+          <Card.Header>
+            <Card.Title className="text-sm">② 評価ランクを設定</Card.Title>
+            <Card.Description className="text-xs">
+              人事評価で決まる評価ランクを選びます。入力済みの単価に応じて G-1 /
+              G-2 / G-3
+              のように表示されます。未設定のままだと暫定ランク1で計算されます。
+            </Card.Description>
+          </Card.Header>
+          <Card.Content>
+            <RankForm
+              initialRank={dashboard.currentRank}
+              prices={dashboard.prices}
+              settings={dashboard.settings}
+              reload={reload}
+              saveLabel="保存して次へ →"
+              onSaved={() => setStep(3)}
+              footer={(saveButton) => (
+                <div className="flex items-center justify-between">
+                  <Button variant="ghost" onPress={() => setStep(1)}>
+                    ← 戻る
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" onPress={() => setStep(3)}>
+                      あとで設定
+                    </Button>
+                    {saveButton}
+                  </div>
+                </div>
+              )}
+            />
           </Card.Content>
         </Card>
       )}

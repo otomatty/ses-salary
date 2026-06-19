@@ -27,6 +27,7 @@ const dashboard: DashboardResponse = {
     employmentType: "fulltime_engineer",
     monthlyStandardHours: 160,
     deemedOvertimeHours: null,
+    consultRate: null,
   },
   currentMonthIncome: null,
 };

@@ -27,6 +27,7 @@ describe("findEmploymentType / deemedHoursOf", () => {
       employmentType: "fulltime_engineer",
       monthlyStandardHours: 160,
       deemedOvertimeHours: 5,
+      consultRate: null,
     };
     expect(deemedHoursOf(s)).toBe(5);
     expect(deemedHoursOf({ ...s, deemedOvertimeHours: null })).toBe(20);
@@ -142,6 +143,7 @@ describe("給与明細（実データ）との一致を検証する", () => {
     employmentType: "fulltime_engineer",
     monthlyStandardHours: 160,
     deemedOvertimeHours: null, // 20h
+    consultRate: null,
   };
   const allowances: MonthlyAllowanceItem[] = [
     { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
@@ -173,6 +175,7 @@ describe("buildMonthlyIncome", () => {
     employmentType: "fulltime_engineer",
     monthlyStandardHours: 160,
     deemedOvertimeHours: null,
+    consultRate: null,
   };
 
   it("残業未入力なら残業代0、手当のみ加算", () => {

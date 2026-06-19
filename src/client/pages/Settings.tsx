@@ -109,6 +109,8 @@ export function Settings({
         <Card.Content>
           <RankForm
             initialRank={dashboard.currentRank}
+            prices={dashboard.prices}
+            settings={dashboard.settings}
             reload={reload}
             saveLabel="保存して再計算"
           />

@@ -58,6 +58,21 @@ describe("calcSalary", () => {
     expect(r.rate).toBeNull();
   });
 
+  it("140万以上でも手動還元率を渡すと率×平均単価で計算する", () => {
+    const r = calcSalary(months(1_400_000, 1_400_000, 1_400_000), 1, 56);
+    expect(r.band.code).toBe("M");
+    expect(r.status).toBe("ok");
+    expect(r.rate).toBe(56);
+    expect(r.salary).toBe(Math.round(1_400_000 * 0.56));
+  });
+
+  it("手動還元率が null/0 のときは従来どおり要相談", () => {
+    const m = months(1_400_000, 1_400_000, 1_400_000);
+    expect(calcSalary(m, 1, null).status).toBe("consult");
+    expect(calcSalary(m, 1, 0).status).toBe("consult");
+    expect(calcSalary(m, 1, null).salary).toBeNull();
+  });
+
   it("40万未満は固定額235,000円", () => {
     const r = calcSalary(months(390_000, 390_000, 390_000), 3);
     expect(r.status).toBe("fixed");
