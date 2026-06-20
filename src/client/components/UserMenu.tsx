@@ -61,7 +61,7 @@ export function UserMenu({
           </div>
           {tier && (
             <div className="mt-2">
-              <TierBadge tier={tier} size="sm" showRange />
+              <TierBadge tier={tier} size="sm" />
             </div>
           )}
         </div>

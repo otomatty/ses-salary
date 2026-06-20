@@ -514,6 +514,11 @@ html.scrollbar-hidden body::-webkit-scrollbar {
   background: linear-gradient(180deg, var(--tier-from), var(--tier-to));
 }
 
+/* --- カードのティア枠線（その期のランク色を border に反映） --- */
+.tier-border {
+  border-color: var(--tier-ring);
+}
+
 /* --- 早見表の凡例ドット --- */
 .tier-dot {
   display: inline-block;
