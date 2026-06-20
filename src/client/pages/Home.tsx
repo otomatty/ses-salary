@@ -3,6 +3,12 @@ import type { DashboardResponse, MonthlyIncomeDTO } from "@shared/types";
 import { formatYen } from "@shared/calc";
 import { guidanceForStatus } from "@shared/guidance";
 import type { SalaryResult } from "@shared/periods";
+import {
+  findTier,
+  latestUnitPrice,
+  TIERS,
+  type Tier,
+} from "@shared/rateTable";
 import { LazyTrendChart } from "../components/LazyTrendChart";
 import { StatusBadge } from "../components/StatusBadge";
 import { StatusGuidance } from "../components/StatusGuidance";
@@ -18,8 +24,17 @@ export function Home({
 }) {
   const navigate = useNavigate();
 
+  // 直近月の単価から本人の現在ティアを判定する（単価未登録なら null）。
+  const latestPrice = latestUnitPrice(dashboard.prices);
+  const tier = latestPrice === null ? null : findTier(latestPrice);
+
   return (
     <div className="space-y-6">
+      {/* 現在のティア（Tech Gold / Silver / Bronze）。直近月の単価で判定。 */}
+      {tier !== null && latestPrice !== null && (
+        <TierHero tier={tier} unitPrice={latestPrice} />
+      )}
+
       {error && (
         <Alert status="danger">
           <Alert.Indicator />
@@ -72,13 +87,38 @@ export function Home({
           result={dashboard.current}
           emptyText="今期に適用される給与を計算するには、前四半期（3ヶ月）の単価が必要です。"
           income={dashboard.currentMonthIncome}
+          tier={tier}
         />
         <SummaryCard
           label="来期の給与（予測）"
           result={dashboard.next}
           emptyText={dashboard.nextPending ?? "来期の給与はまだ計算できません。"}
           highlight
+          tier={tier}
         />
+      </div>
+    </div>
+  );
+}
+
+/** 現在のティア（Gold / Silver / Bronze）を金・銀・銅のバナーで主張する。 */
+function TierHero({ tier, unitPrice }: { tier: Tier; unitPrice: number }) {
+  const info = TIERS[tier];
+  return (
+    <div className="tier-hero" data-tier={tier}>
+      <div className="tier-hero__content flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-medium opacity-90">あなたの現在のランク</p>
+          <p className="mt-0.5 text-2xl font-bold tracking-tight">{info.label}</p>
+          <p className="mt-0.5 text-xs opacity-90">{info.rangeLabel}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-xs opacity-90">直近月の単価</p>
+          <p className="text-xl font-bold tabular-nums">
+            {formatYen(unitPrice)}
+            <span className="ml-1 text-sm font-normal opacity-90">円</span>
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -91,6 +131,7 @@ function SummaryCard({
   emptyText,
   highlight = false,
   income = null,
+  tier = null,
 }: {
   label: string;
   result: SalaryResult | null;
@@ -98,12 +139,17 @@ function SummaryCard({
   highlight?: boolean;
   /** 当月の月収内訳（基本給 + 手当 + 残業）。今期カードでのみ渡す。 */
   income?: MonthlyIncomeDTO | null;
+  /** 本人の現在ティア。左端のアクセントバーに反映する。 */
+  tier?: Tier | null;
 }) {
   const navigate = useNavigate();
   const guidance = result ? guidanceForStatus(result.breakdown.status) : null;
 
   return (
-    <Card className={highlight ? "ring-accent/40 ring-2" : ""}>
+    <Card
+      className={`${tier ? "tier-accent" : ""}${highlight ? " ring-accent/40 ring-2" : ""}`}
+      data-tier={tier ?? undefined}
+    >
       <Card.Header className="flex flex-row items-center justify-between">
         <Card.Title className="text-sm">{label}</Card.Title>
         {result && (

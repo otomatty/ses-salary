@@ -384,3 +384,143 @@ html.scrollbar-hidden body::-webkit-scrollbar {
   color: color-mix(in oklab, var(--accent) 70%, var(--foreground));
   font-weight: 600;
 }
+
+/* ===========================================================================
+   Tech ランク（ティア）: Gold / Silver / Bronze
+   単価帯ごとの「格」を金・銀・銅のメタリックな配色で視覚化する。
+   各ティアのグラデーション・文字色・リング色をトークン化し、
+   バッジ / ヒーロー / カードアクセントから data-tier 属性で参照する。
+   =========================================================================== */
+:root {
+  --tier-gold-from: #eccb55;
+  --tier-gold-to: #a9821f;
+  --tier-gold-ring: #c69a2a;
+  --tier-gold-on: #3a2c05;
+
+  --tier-silver-from: #d2d7dd;
+  --tier-silver-to: #7d8590;
+  --tier-silver-ring: #9aa1ab;
+  --tier-silver-on: #20262e;
+
+  --tier-bronze-from: #e08a4b;
+  --tier-bronze-to: #a4571f;
+  --tier-bronze-ring: #c06b2f;
+  --tier-bronze-on: #fff;
+}
+
+/* data-tier から色トークンを束ねる（バッジ・ヒーロー・アクセント共通）。 */
+[data-tier="gold"] {
+  --tier-from: var(--tier-gold-from);
+  --tier-to: var(--tier-gold-to);
+  --tier-ring: var(--tier-gold-ring);
+  --tier-on: var(--tier-gold-on);
+}
+[data-tier="silver"] {
+  --tier-from: var(--tier-silver-from);
+  --tier-to: var(--tier-silver-to);
+  --tier-ring: var(--tier-silver-ring);
+  --tier-on: var(--tier-silver-on);
+}
+[data-tier="bronze"] {
+  --tier-from: var(--tier-bronze-from);
+  --tier-to: var(--tier-bronze-to);
+  --tier-ring: var(--tier-bronze-ring);
+  --tier-on: var(--tier-bronze-on);
+}
+
+/* --- バッジ（ピル） --- */
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: var(--tier-on);
+  background: linear-gradient(135deg, var(--tier-from), var(--tier-to));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.22);
+}
+
+.tier-badge[data-size="sm"] {
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+}
+
+.tier-badge[data-size="lg"] {
+  gap: 0.5rem;
+  padding: 0.4375rem 0.9375rem;
+  font-size: 0.9375rem;
+}
+
+.tier-badge__range {
+  font-weight: 500;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- ヒーローバナー（ホーム上部の「あなたの格」） --- */
+.tier-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md, 0.75rem);
+  padding: 1rem 1.25rem;
+  color: var(--tier-on);
+  background: linear-gradient(135deg, var(--tier-from), var(--tier-to));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 2px 10px rgba(0, 0, 0, 0.18);
+}
+
+/* 斜めの光沢（メタリック感の演出）。 */
+.tier-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 62%
+  );
+  pointer-events: none;
+}
+
+.tier-hero__content {
+  position: relative;
+  z-index: 1;
+}
+
+/* --- カード左端のティアアクセントバー --- */
+.tier-accent {
+  position: relative;
+}
+
+.tier-accent::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  border-top-left-radius: inherit;
+  border-bottom-left-radius: inherit;
+  background: linear-gradient(180deg, var(--tier-from), var(--tier-to));
+}
+
+/* --- 早見表の凡例ドット --- */
+.tier-dot {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, var(--tier-from), var(--tier-to));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+  vertical-align: middle;
+}

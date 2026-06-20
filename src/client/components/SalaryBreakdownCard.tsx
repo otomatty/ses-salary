@@ -3,8 +3,10 @@ import { Alert, Card, Chip } from "@heroui/react";
 import type { SalaryResult } from "@shared/periods";
 import { formatYen, formatRate } from "@shared/calc";
 import { guidanceForStatus } from "@shared/guidance";
+import { findTier } from "@shared/rateTable";
 import { StatusBadge } from "./StatusBadge";
 import { StatusGuidance } from "./StatusGuidance";
+import { TierBadge } from "./TierBadge";
 
 /**
  * 計算根拠の内訳表示（PRD §6.3）。
@@ -61,7 +63,14 @@ export function SalaryBreakdownCard({
               ))}
             </div>
           </Row>
-          <Row label="平均単価">{formatYen(b.avgUnitPrice)} 円</Row>
+          <Row label="平均単価">
+            <span className="inline-flex items-center gap-2">
+              {b.avgUnitPrice > 0 && (
+                <TierBadge tier={findTier(b.avgUnitPrice)} size="sm" />
+              )}
+              {formatYen(b.avgUnitPrice)} 円
+            </span>
+          </Row>
           <Row label="判定された帯">{b.band.label}</Row>
           <Row label="評価ランク">
             {b.status === "fixed" ||
