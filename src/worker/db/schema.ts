@@ -5,6 +5,7 @@ export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  avatarUrl: text("avatar_url"), // Google プロフィール画像URL（未取得は null）
   createdAt: integer("created_at").notNull(), // unix ms
 });
 

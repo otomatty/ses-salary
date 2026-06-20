@@ -91,7 +91,12 @@ apiApp.get("/api/me", async (c) => {
     .get();
   if (!user) return c.json<MeResponse>({ user: null });
   return c.json<MeResponse>({
-    user: { id: user.id, name: user.name, email: user.email },
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+    },
   });
 });
 

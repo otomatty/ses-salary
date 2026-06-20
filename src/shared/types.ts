@@ -9,6 +9,8 @@ export interface ApiUser {
   id: string;
   name: string;
   email: string;
+  /** Google プロフィール画像URL（未取得は null）。 */
+  avatarUrl?: string | null;
 }
 
 export interface MonthlyPriceDTO {
