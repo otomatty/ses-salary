@@ -80,30 +80,6 @@ export function Home({
           highlight
         />
       </div>
-
-      {/* 各画面への入口 */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <NavTile
-          title="月別入力"
-          desc="各月の単価・残業・手当を入力"
-          onClick={() => navigate({ to: "/prices" })}
-        />
-        <NavTile
-          title="給与の詳細"
-          desc="計算根拠と月次の実支給を確認"
-          onClick={() => navigate({ to: "/detail" })}
-        />
-        <NavTile
-          title="単価シミュレーション"
-          desc="仮単価で次の給与を試算"
-          onClick={() => navigate({ to: "/simulate" })}
-        />
-        <NavTile
-          title="設定"
-          desc="評価ランクの選択"
-          onClick={() => navigate({ to: "/settings" })}
-        />
-      </div>
     </div>
   );
 }
@@ -204,26 +180,5 @@ function SummaryCard({
         )}
       </Card.Content>
     </Card>
-  );
-}
-
-/** 各画面への遷移タイル（ボタン）。 */
-function NavTile({
-  title,
-  desc,
-  onClick,
-}: {
-  title: string;
-  desc: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="border-border bg-surface hover:border-accent rounded-xl border p-4 text-left shadow-sm transition hover:shadow"
-    >
-      <p className="font-semibold">{title}</p>
-      <p className="text-muted mt-1 text-xs">{desc}</p>
-    </button>
   );
 }
