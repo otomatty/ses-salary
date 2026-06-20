@@ -1,6 +1,7 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import type { ApiUser } from "@shared/types";
 import { api } from "../api";
+import { DotPattern } from "../components/DotPattern";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { UserMenu } from "../components/UserMenu";
 
@@ -21,7 +22,8 @@ export function Layout({
   };
 
   return (
-    <div className="bg-background text-foreground min-h-screen">
+    <div className="text-foreground relative min-h-screen">
+      <DotPattern cursorHighlight className="fixed inset-0 z-0" />
       <header className="bg-surface/80 border-border sticky top-0 z-10 border-b backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <Link to="/" className="text-base font-bold">
@@ -34,7 +36,7 @@ export function Layout({
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-6">
+      <main className="relative z-10 mx-auto max-w-3xl px-4 py-6">
         <Outlet />
       </main>
     </div>
