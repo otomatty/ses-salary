@@ -30,6 +30,7 @@ const dashboard: DashboardResponse = {
     consultRate: null,
   },
   currentMonthIncome: null,
+  annualIncome: null,
 };
 
 const HEADING = "本当にすべてのデータを削除しますか？";

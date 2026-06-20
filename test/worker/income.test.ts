@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { postJson, request, login } from "./helpers";
 import {
+  addMonths,
   currentYearMonth,
   quarterStartMonth,
   prevQuarterStart,
@@ -305,5 +306,37 @@ describe("/api/dashboard currentMonthIncome", () => {
     expect(inc.allowanceTotal).toBe(20_000);
     expect(inc.overtimePay).toBe(expectedOt);
     expect(inc.gross).toBe(425_840 + 20_000 + expectedOt);
+  });
+});
+
+describe("/api/dashboard annualIncome（直近12カ月の年収）", () => {
+  let cookie: string;
+  beforeEach(async () => {
+    cookie = await login();
+  });
+
+  it("12カ月すべての基本給が揃うと前月までの年収を返す", async () => {
+    // 当月の前月から遡って広めに単価を 80万 で埋める（各四半期の前提を揃える）。
+    const items = Array.from({ length: 24 }, (_v, i) => ({
+      yearMonth: addMonths(baseYm, -(i + 1)),
+      unitPrice: 800_000,
+    }));
+    const res = await postJson("/api/prices/bulk", { items }, cookie);
+    expect(res.status).toBe(201);
+
+    const body = await dashboard(cookie);
+    expect(body.annualIncome).not.toBeNull();
+    const a = body.annualIncome!;
+    expect(a.months).toHaveLength(12);
+    expect(a.startMonth).toBe(addMonths(baseYm, -12));
+    expect(a.endMonth).toBe(addMonths(baseYm, -1));
+    // 80万・G帯ランク1 → 基本給 425,840（手当・残業なし）。
+    expect(a.totalBaseSalary).toBe(425_840 * 12);
+    expect(a.total).toBe(425_840 * 12);
+  });
+
+  it("データが揃わなければ null（カード非表示）", async () => {
+    const body = await dashboard(cookie);
+    expect(body.annualIncome).toBeNull();
   });
 });

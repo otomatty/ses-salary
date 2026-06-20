@@ -265,6 +265,88 @@ export interface MonthlyIncomeBreakdown {
   overtime: OvertimeBreakdown;
 }
 
+/** 年収算出に渡す1カ月分の入力（基本給は算出不能なら null）。 */
+export interface AnnualIncomeMonthInput {
+  /** "YYYY-MM" */
+  yearMonth: string;
+  /** その月が属する四半期の確定給与（算出不能なら null） */
+  baseSalary: number | null;
+  /** その月の手当一覧 */
+  allowances: MonthlyAllowanceItem[];
+  /** その月の残業時間（未入力なら null） */
+  overtime: OvertimeHours | null;
+}
+
+/** 直近12カ月の額面実支給見込み合計（年収）。 */
+export interface AnnualIncomeBreakdown {
+  /** 集計窓の開始月 "YYYY-MM"（最古） */
+  startMonth: string;
+  /** 集計窓の終了月 "YYYY-MM"（最新） */
+  endMonth: string;
+  /** 年収 = 12カ月の gross 合計（円） */
+  total: number;
+  /** 基本給の合計（円） */
+  totalBaseSalary: number;
+  /** 手当の合計（円） */
+  totalAllowance: number;
+  /** 残業代の合計（円） */
+  totalOvertimePay: number;
+  /** 各月の内訳（古い順, 12件） */
+  months: MonthlyIncomeBreakdown[];
+}
+
+/** 年収集計に必要な月数（直近1年分）。 */
+export const ANNUAL_INCOME_MONTHS = 12;
+
+/**
+ * 直近12カ月の額面実支給見込みを合計して年収を組み立てる。
+ * 受け取る months は12カ月ちょうど（古い順）を想定する。
+ * 月数が12でない、または1カ月でも基本給が算出不能（null）の場合は null を返す
+ * （= 直近1年分のデータが揃っていないので表示しない）。
+ */
+export function buildAnnualIncome(params: {
+  months: AnnualIncomeMonthInput[];
+  settings: UserSettings;
+}): AnnualIncomeBreakdown | null {
+  const { months, settings } = params;
+  if (months.length !== ANNUAL_INCOME_MONTHS) return null;
+
+  const built: MonthlyIncomeBreakdown[] = [];
+  for (const m of months) {
+    const income = buildMonthlyIncome({
+      yearMonth: m.yearMonth,
+      baseSalary: m.baseSalary,
+      settings,
+      allowances: m.allowances,
+      overtime: m.overtime,
+    });
+    // 基本給が算出不能な月が1つでもあれば年収は確定できない。
+    if (income === null) return null;
+    built.push(income);
+  }
+
+  let total = 0;
+  let totalBaseSalary = 0;
+  let totalAllowance = 0;
+  let totalOvertimePay = 0;
+  for (const inc of built) {
+    total += inc.gross;
+    totalBaseSalary += inc.baseSalary;
+    totalAllowance += inc.allowanceTotal;
+    totalOvertimePay += inc.overtimePay;
+  }
+
+  return {
+    startMonth: built[0]!.yearMonth,
+    endMonth: built[built.length - 1]!.yearMonth,
+    total,
+    totalBaseSalary,
+    totalAllowance,
+    totalOvertimePay,
+    months: built,
+  };
+}
+
 /**
  * 基本給・手当・残業の生データから、月の額面実支給見込みを組み立てる。
  * baseSalary が null（要相談など算出不能）の場合は null を返す。
