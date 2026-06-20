@@ -55,7 +55,12 @@ function isAllowedEmail(env: Env, email: string): boolean {
 }
 
 /** ユーザーを email で取得、なければ作成して返す */
-async function upsertUser(env: Env, email: string, name: string) {
+async function upsertUser(
+  env: Env,
+  email: string,
+  name: string,
+  avatarUrl?: string | null,
+) {
   const db = getDb(env.DB);
   const existing = await db
     .select()
@@ -63,13 +68,19 @@ async function upsertUser(env: Env, email: string, name: string) {
     .where(eq(schema.users.email, email))
     .get();
   if (existing) {
-    // 名前が変わっていれば更新
-    if (name && name !== existing.name) {
+    // 名前・アイコンが変わっていれば更新（Google 側の最新値を反映）
+    const patch: Partial<typeof schema.users.$inferInsert> = {};
+    if (name && name !== existing.name) patch.name = name;
+    if (avatarUrl !== undefined && avatarUrl !== existing.avatarUrl) {
+      patch.avatarUrl = avatarUrl;
+    }
+    if (Object.keys(patch).length > 0) {
       await db
         .update(schema.users)
-        .set({ name })
+        .set(patch)
         .where(eq(schema.users.id, existing.id))
         .run();
+      return { ...existing, ...patch };
     }
     return existing;
   }
@@ -77,6 +88,7 @@ async function upsertUser(env: Env, email: string, name: string) {
     id: newId(),
     name: name || email.split("@")[0],
     email,
+    avatarUrl: avatarUrl ?? null,
     createdAt: Date.now(),
   };
   await db.insert(schema.users).values(user).run();
@@ -176,6 +188,7 @@ authApp.get("/auth/callback", async (c) => {
     email?: string;
     email_verified?: boolean;
     name?: string;
+    picture?: string;
   };
 
   if (!info.email || info.email_verified === false) {
@@ -188,7 +201,12 @@ authApp.get("/auth/callback", async (c) => {
     );
   }
 
-  const user = await upsertUser(env, info.email, info.name ?? "");
+  const user = await upsertUser(
+    env,
+    info.email,
+    info.name ?? "",
+    info.picture ?? null,
+  );
   await startSession(c, env, user.id);
   return c.redirect("/");
 });

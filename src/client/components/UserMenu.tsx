@@ -39,6 +39,7 @@ export function UserMenu({
     <Dropdown>
       <Dropdown.Trigger className="hover:bg-surface-secondary flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors">
         <Avatar size="sm">
+          {user.avatarUrl && <Avatar.Image src={user.avatarUrl} alt={user.name} />}
           <Avatar.Fallback>{userInitials(user.name)}</Avatar.Fallback>
         </Avatar>
         <span className="hidden max-w-32 truncate text-sm sm:inline">
@@ -50,6 +51,9 @@ export function UserMenu({
         <div className="px-3 pt-3 pb-1">
           <div className="flex items-center gap-2">
             <Avatar size="sm">
+              {user.avatarUrl && (
+                <Avatar.Image src={user.avatarUrl} alt={user.name} />
+              )}
               <Avatar.Fallback>{userInitials(user.name)}</Avatar.Fallback>
             </Avatar>
             <div className="flex min-w-0 flex-col gap-0">

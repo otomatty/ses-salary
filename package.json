@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply ses-salary-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply ses-salary-db --remote",
+    "db:migrate:remote": "CLOUDFLARE_ENV=production wrangler d1 migrations apply ses-salary-db --remote",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:workers": "vitest run --project workers",
