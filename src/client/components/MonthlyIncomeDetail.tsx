@@ -48,13 +48,17 @@ export function MonthlyIncomeDetail({
 
   // 選択月の基本給（属する四半期の確定給与）。
   const baseSalary = useMemo(() => {
+    // rankFallback=1・consultRate はサーバの dashboard 計算（api.ts）と揃える。
+    // 揃えないと M帯（手動還元率）の月で基本給が算出不能扱いになりダッシュボードと乖離する。
     const result = computeSalaryForQuarter(
       quarterStartMonth(yearMonth),
       priceMap,
       rankHistory,
+      1,
+      dashboard.settings.consultRate,
     );
     return result?.breakdown.salary ?? null;
-  }, [yearMonth, priceMap, rankHistory]);
+  }, [yearMonth, priceMap, rankHistory, dashboard.settings.consultRate]);
 
   // 選択月の手当・残業を dashboard から抽出。
   const allowances = useMemo<MonthlyAllowanceItem[]>(
@@ -180,9 +184,9 @@ export function MonthlyIncomeDetail({
               <section>
                 <p className="text-muted mb-2 text-xs font-medium">手当の明細</p>
                 <dl className="space-y-2 text-sm">
-                  {income.allowances.map((a) => (
+                  {income.allowances.map((a, idx) => (
                     <Row
-                      key={a.name}
+                      key={`${a.name}-${idx}`}
                       label={
                         <span className="flex items-center gap-1.5">
                           {a.name}
