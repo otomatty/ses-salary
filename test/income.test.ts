@@ -2,10 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   sumAllowances,
   buildMonthlyIncome,
+  buildAnnualIncome,
   calcOvertimePay,
   deemedHoursOf,
   findEmploymentType,
   DEFAULT_USER_SETTINGS,
+  type AnnualIncomeMonthInput,
   type MonthlyAllowanceItem,
   type UserSettings,
 } from "../src/shared/income";
@@ -215,5 +217,67 @@ describe("buildMonthlyIncome", () => {
   it("既定設定はみなし20h・所定160h", () => {
     expect(DEFAULT_USER_SETTINGS.monthlyStandardHours).toBe(160);
     expect(deemedHoursOf(DEFAULT_USER_SETTINGS)).toBe(20);
+  });
+});
+
+describe("buildAnnualIncome（直近12カ月の額面合計）", () => {
+  const settings: UserSettings = {
+    employmentType: "fulltime_engineer",
+    monthlyStandardHours: 160,
+    deemedOvertimeHours: null,
+    consultRate: null,
+  };
+
+  /** 2025-06〜2026-05 の12カ月。基本給はすべて baseSalary、手当・残業なし。 */
+  function twelveMonths(
+    baseSalary: number | null,
+    overrides: Partial<Record<string, Partial<AnnualIncomeMonthInput>>> = {},
+  ): AnnualIncomeMonthInput[] {
+    const yms = [
+      "2025-06","2025-07","2025-08","2025-09","2025-10","2025-11",
+      "2025-12","2026-01","2026-02","2026-03","2026-04","2026-05",
+    ];
+    return yms.map((yearMonth) => ({
+      yearMonth,
+      baseSalary,
+      allowances: [],
+      overtime: null,
+      ...overrides[yearMonth],
+    }));
+  }
+
+  it("12カ月すべて基本給が算出可能なら gross を合計する", () => {
+    const r = buildAnnualIncome({ months: twelveMonths(400_000), settings })!;
+    expect(r).not.toBeNull();
+    expect(r.startMonth).toBe("2025-06");
+    expect(r.endMonth).toBe("2026-05");
+    expect(r.months).toHaveLength(12);
+    expect(r.totalBaseSalary).toBe(400_000 * 12);
+    expect(r.total).toBe(400_000 * 12);
+  });
+
+  it("1カ月でも基本給が null なら null を返す", () => {
+    const months = twelveMonths(400_000, {
+      "2026-01": { baseSalary: null },
+    });
+    expect(buildAnnualIncome({ months, settings })).toBeNull();
+  });
+
+  it("手当・残業も合算する", () => {
+    const months = twelveMonths(400_000, {
+      "2025-06": {
+        allowances: [
+          { name: "役職手当", amount: 30_000, includeInOvertimeBase: true },
+        ],
+      },
+    });
+    const r = buildAnnualIncome({ months, settings })!;
+    expect(r.totalAllowance).toBe(30_000);
+    expect(r.total).toBe(400_000 * 12 + 30_000);
+  });
+
+  it("月数が12でなければ null を返す", () => {
+    const months = twelveMonths(400_000).slice(0, 11);
+    expect(buildAnnualIncome({ months, settings })).toBeNull();
   });
 });

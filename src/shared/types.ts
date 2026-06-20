@@ -3,7 +3,11 @@
 import type { Rank } from "./rateTable";
 import type { SalaryResult } from "./periods";
 import type { SalaryStatus } from "./calc";
-import type { EmploymentTypeKey, MonthlyIncomeBreakdown } from "./income";
+import type {
+  AnnualIncomeBreakdown,
+  EmploymentTypeKey,
+  MonthlyIncomeBreakdown,
+} from "./income";
 
 export interface ApiUser {
   id: string;
@@ -56,6 +60,9 @@ export interface UserSettingsDTO {
 /** 月の額面実支給見込み（基本給 + 手当 + 残業）の内訳。 */
 export type MonthlyIncomeDTO = MonthlyIncomeBreakdown;
 
+/** 直近12カ月の額面実支給見込み合計（年収）。 */
+export type AnnualIncomeDTO = AnnualIncomeBreakdown;
+
 /**
  * 永続化された給与計算結果スナップショット（PRD §9 / salary_results）。
  * 確定時点の率・額をそのまま保持する監査用レコード。
@@ -106,6 +113,11 @@ export interface DashboardResponse {
   settings: UserSettingsDTO;
   /** 当月（currentYearMonth）の月収内訳。基本給が算出不能なら null */
   currentMonthIncome: MonthlyIncomeDTO | null;
+  /**
+   * 直近12カ月（前月まで）の額面実支給見込み合計。
+   * 12カ月すべての基本給が算出可能な場合のみ値を持ち、揃わなければ null（非表示）。
+   */
+  annualIncome: AnnualIncomeDTO | null;
 }
 
 export interface ApiError {

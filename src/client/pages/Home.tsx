@@ -1,5 +1,9 @@
 import { Alert, Button, Card } from "@heroui/react";
-import type { DashboardResponse, MonthlyIncomeDTO } from "@shared/types";
+import type {
+  AnnualIncomeDTO,
+  DashboardResponse,
+  MonthlyIncomeDTO,
+} from "@shared/types";
 import { formatYen } from "@shared/calc";
 import { guidanceForStatus } from "@shared/guidance";
 import type { SalaryResult } from "@shared/periods";
@@ -67,18 +71,10 @@ export function Home({
         </Alert>
       )}
 
-      {/* 推移グラフ（主役） */}
-      <Card>
-        <Card.Header>
-          <Card.Title className="text-sm">単価・給与の推移</Card.Title>
-        </Card.Header>
-        <Card.Content>
-          <LazyTrendChart
-            prices={dashboard.prices}
-            history={dashboard.history}
-          />
-        </Card.Content>
-      </Card>
+      {/* 年収（直近12カ月）。12カ月すべての基本給が揃う場合のみ表示。 */}
+      {dashboard.annualIncome && (
+        <AnnualIncomeCard annual={dashboard.annualIncome} />
+      )}
 
       {/* 今期・来期サマリ */}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -95,7 +91,53 @@ export function Home({
           highlight
         />
       </div>
+
+      {/* 推移グラフ */}
+      <Card>
+        <Card.Header>
+          <Card.Title className="text-sm">単価・給与の推移</Card.Title>
+        </Card.Header>
+        <Card.Content>
+          <LazyTrendChart
+            prices={dashboard.prices}
+            history={dashboard.history}
+          />
+        </Card.Content>
+      </Card>
     </div>
+  );
+}
+
+/**
+ * 年収（直近12カ月の額面実支給見込み合計）の幅広バナー。
+ * 12カ月すべての基本給が算出可能な場合のみ呼ばれる（呼び出し側で判定）。
+ */
+function AnnualIncomeCard({ annual }: { annual: AnnualIncomeDTO }) {
+  return (
+    <Card>
+      <Card.Content className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-muted text-sm">年収（直近12ヶ月）</p>
+          <p className="mt-0.5 text-3xl font-bold tabular-nums">
+            {formatYen(annual.total)}
+            <span className="text-muted ml-1 text-base font-normal">円</span>
+          </p>
+          <p className="text-muted mt-1 text-xs">
+            {annual.startMonth} 〜 {annual.endMonth} の実支給見込み合計（手当・残業を含む概算）
+          </p>
+        </div>
+        <p className="text-muted text-xs tabular-nums">
+          基本給 {formatYen(annual.totalBaseSalary)}
+          {annual.totalAllowance > 0 && (
+            <> ＋ 手当 {formatYen(annual.totalAllowance)}</>
+          )}
+          {annual.totalOvertimePay > 0 && (
+            <> ＋ 残業 {formatYen(annual.totalOvertimePay)}</>
+          )}{" "}
+          円
+        </p>
+      </Card.Content>
+    </Card>
   );
 }
 

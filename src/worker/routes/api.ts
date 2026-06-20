@@ -14,6 +14,7 @@ import { newId } from "../lib/id";
 import { getUserIdFromRequest } from "../auth";
 import { isValidYearMonth, BULK_MAX_MONTHS } from "@shared/periods";
 import {
+  addMonths,
   buildSalaryHistory,
   buildAllPeriodSnapshots,
   computeSalaryForQuarter,
@@ -36,8 +37,11 @@ import {
 } from "./monthInput";
 import {
   buildMonthlyIncome,
+  buildAnnualIncome,
   isEmploymentTypeKey,
+  ANNUAL_INCOME_MONTHS,
   DEFAULT_USER_SETTINGS,
+  type AnnualIncomeMonthInput,
   type MonthlyAllowanceItem,
   type OvertimeHours,
   type UserSettings,
@@ -365,30 +369,58 @@ apiApp.get("/api/dashboard", async (c) => {
 
   // 当月の月収内訳（基本給 + 手当 + 残業）。基本給は今期の四半期給与を当月分として使う。
   const settings: UserSettings = incomeData.settings;
-  const thisMonthAllowances: MonthlyAllowanceItem[] = incomeData.allowanceDTOs
-    .filter((a) => a.yearMonth === thisMonth)
-    .map((a) => ({
-      name: a.name,
-      amount: a.amount,
-      includeInOvertimeBase: a.includeInOvertimeBase,
-    }));
-  const thisMonthOvertimeDTO = overtimeDTOs.find(
-    (o) => o.yearMonth === thisMonth,
-  );
-  const thisMonthOvertime: OvertimeHours | null = thisMonthOvertimeDTO
-    ? {
-        normalHours: thisMonthOvertimeDTO.normalHours,
-        nightHours: thisMonthOvertimeDTO.nightHours,
-        holidayHours: thisMonthOvertimeDTO.holidayHours,
-      }
-    : null;
+
+  // 月収算出の前提を年月ごとに引くヘルパ（当月・年収窓で共用）。
+  const allowancesForMonth = (ym: string): MonthlyAllowanceItem[] =>
+    incomeData.allowanceDTOs
+      .filter((a) => a.yearMonth === ym)
+      .map((a) => ({
+        name: a.name,
+        amount: a.amount,
+        includeInOvertimeBase: a.includeInOvertimeBase,
+      }));
+  const overtimeForMonth = (ym: string): OvertimeHours | null => {
+    const o = overtimeDTOs.find((x) => x.yearMonth === ym);
+    return o
+      ? {
+          normalHours: o.normalHours,
+          nightHours: o.nightHours,
+          holidayHours: o.holidayHours,
+        }
+      : null;
+  };
+  // その月が属する四半期の確定給与（算出不能なら null）。dashboard と前提を揃える。
+  const baseSalaryForMonth = (ym: string): number | null =>
+    computeSalaryForQuarter(
+      quarterStartMonth(ym),
+      priceMap,
+      rankHistory,
+      1,
+      consultRate,
+    )?.breakdown.salary ?? null;
+
   const currentMonthIncome = buildMonthlyIncome({
     yearMonth: thisMonth,
     baseSalary: current?.breakdown.salary ?? null,
     settings,
-    allowances: thisMonthAllowances,
-    overtime: thisMonthOvertime,
+    allowances: allowancesForMonth(thisMonth),
+    overtime: overtimeForMonth(thisMonth),
   });
+
+  // 年収（直近12カ月）。当月を除き前月から遡って12カ月（古い順）を集計する。
+  const annualMonths: AnnualIncomeMonthInput[] = Array.from(
+    { length: ANNUAL_INCOME_MONTHS },
+    (_unused, i) => {
+      const ym = addMonths(thisMonth, -(ANNUAL_INCOME_MONTHS - i));
+      return {
+        yearMonth: ym,
+        baseSalary: baseSalaryForMonth(ym),
+        allowances: allowancesForMonth(ym),
+        overtime: overtimeForMonth(ym),
+      };
+    },
+  );
+  const annualIncome = buildAnnualIncome({ months: annualMonths, settings });
 
   return c.json<DashboardResponse>({
     prices: priceDTOs,
@@ -404,6 +436,7 @@ apiApp.get("/api/dashboard", async (c) => {
     overtime: overtimeDTOs,
     settings: incomeData.settings,
     currentMonthIncome,
+    annualIncome,
   });
 });
 
