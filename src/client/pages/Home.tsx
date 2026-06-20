@@ -89,8 +89,8 @@ export function Home({
           onClick={() => navigate({ to: "/prices" })}
         />
         <NavTile
-          title="計算根拠の内訳"
-          desc="帯・ランク・率・式を確認"
+          title="給与の詳細"
+          desc="計算根拠と月次の実支給を確認"
           onClick={() => navigate({ to: "/detail" })}
         />
         <NavTile
@@ -197,7 +197,7 @@ function SummaryCard({
             )}
             <div className="mt-3">
               <Button variant="ghost" size="sm" onPress={() => navigate({ to: "/detail" })}>
-                計算根拠を見る →
+                詳細を見る →
               </Button>
             </div>
           </div>
