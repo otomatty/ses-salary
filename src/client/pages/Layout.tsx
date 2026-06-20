@@ -1,7 +1,9 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import type { ApiUser } from "@shared/types";
 import { api } from "../api";
+import { BottomNav } from "../components/BottomNav";
 import { DotPattern } from "../components/DotPattern";
+import { NavMenu } from "../components/NavMenu";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { UserMenu } from "../components/UserMenu";
 
@@ -30,15 +32,18 @@ export function Layout({
             エンジニア給与計算
           </Link>
           <div className="flex items-center gap-1">
+            <NavMenu />
             <ThemeToggle />
             <UserMenu user={user} onLogout={handleLogout} />
           </div>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-3xl px-4 py-6">
+      <main className="relative z-10 mx-auto max-w-3xl px-4 pt-6 pb-24 md:pb-6">
         <Outlet />
       </main>
+
+      <BottomNav />
     </div>
   );
 }
