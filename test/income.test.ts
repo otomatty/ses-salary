@@ -36,15 +36,24 @@ describe("findEmploymentType / deemedHoursOf", () => {
 
 describe("sumAllowances", () => {
   const items: MonthlyAllowanceItem[] = [
-    { name: "役職手当", amount: 30_000, includeInOvertimeBase: false },
+    { name: "役職手当", amount: 30_000, includeInOvertimeBase: true },
     { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
   ];
 
   it("手当を合計し、残業基礎分を分離する", () => {
     const s = sumAllowances(items);
     expect(s.total).toBe(50_000);
-    expect(s.overtimeBaseTotal).toBe(20_000); // 職務手当のみ
+    expect(s.overtimeBaseTotal).toBe(50_000);
     expect(s.items.map((i) => i.name)).toEqual(["役職手当", "職務手当"]);
+  });
+
+  it("通勤手当は残業基礎に含まれない", () => {
+    const s = sumAllowances([
+      { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+      { name: "通勤手当", amount: 8_330, includeInOvertimeBase: false },
+    ]);
+    expect(s.total).toBe(28_330);
+    expect(s.overtimeBaseTotal).toBe(20_000);
   });
 
   it("0円以下は集計・表示から除外する", () => {
@@ -184,7 +193,7 @@ describe("buildMonthlyIncome", () => {
       baseSalary: 400_000,
       settings,
       allowances: [
-        { name: "役職手当", amount: 30_000, includeInOvertimeBase: false },
+        { name: "役職手当", amount: 30_000, includeInOvertimeBase: true },
       ],
       overtime: null,
     })!;

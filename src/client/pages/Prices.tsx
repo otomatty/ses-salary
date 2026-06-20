@@ -3,13 +3,9 @@ import {
   Alert,
   Button,
   Card,
-  Checkbox,
   Disclosure,
-  Input,
-  Label,
-  NumberField,
-  TextField,
 } from "@heroui/react";
+import { YearMonthField } from "../components/YearMonthField";
 import type { AllowanceDTO, DashboardResponse } from "@shared/types";
 import {
   formatYen,
@@ -24,6 +20,16 @@ import {
 } from "@shared/periods";
 import { buildMonthlyIncome, type UserSettings } from "@shared/income";
 import { api } from "../api";
+import { ManYenField } from "../components/ManYenField";
+import { HoursField } from "../components/HoursField";
+import { AllowanceRowsEditor } from "../components/AllowanceRowsEditor";
+import {
+  emptyMasterRows,
+  masterRowsFromDtos,
+  masterRowsToItems,
+  validateMasterRows,
+  type AllowanceMasterRowDraft,
+} from "../lib/allowanceStrip";
 
 /** 1ヶ月分の編集対象（カードの初期値）。 */
 interface MonthData {
@@ -140,10 +146,12 @@ export function Prices({
         </Card.Header>
         <Card.Content>
           <div className="flex flex-wrap items-end gap-3">
-            <TextField value={newMonth} onChange={setNewMonth} isRequired>
-              <Label>年月</Label>
-              <Input type="month" />
-            </TextField>
+            <YearMonthField
+              label="年月"
+              value={newMonth}
+              onChange={setNewMonth}
+              isRequired
+            />
             <Button variant="primary" onPress={addMonth}>
               月を追加
             </Button>
@@ -193,21 +201,6 @@ export function Prices({
   );
 }
 
-/** カード内で編集する手当の行（amount は空欄許容）。 */
-interface AllowanceRow {
-  name: string;
-  amount: number | null;
-  includeInOvertimeBase: boolean;
-}
-
-function toRow(a: AllowanceDTO): AllowanceRow {
-  return {
-    name: a.name,
-    amount: a.amount,
-    includeInOvertimeBase: a.includeInOvertimeBase,
-  };
-}
-
 /** 1ヶ月分の入力カード。 */
 function MonthCard({
   yearMonth,
@@ -234,8 +227,10 @@ function MonthCard({
   const [normalHours, setNormalHours] = useState(initial.normalHours);
   const [nightHours, setNightHours] = useState(initial.nightHours);
   const [holidayHours, setHolidayHours] = useState(initial.holidayHours);
-  const [rows, setRows] = useState<AllowanceRow[]>(
-    initial.allowances.map(toRow),
+  const [rows, setRows] = useState<AllowanceMasterRowDraft[]>(() =>
+    initial.allowances.length > 0
+      ? masterRowsFromDtos(initial.allowances)
+      : emptyMasterRows(),
   );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -257,45 +252,29 @@ function MonthCard({
         yearMonth,
         baseSalary,
         settings,
-        allowances: rows.map((r) => ({
-          name: r.name.trim(),
-          amount: r.amount ?? 0,
-          includeInOvertimeBase: r.includeInOvertimeBase,
-        })),
+        allowances: masterRowsToItems(rows),
         overtime: { normalHours, nightHours, holidayHours },
       }),
     [yearMonth, baseSalary, settings, rows, normalHours, nightHours, holidayHours],
   );
 
-  const updateRow = (i: number, patch: Partial<AllowanceRow>) =>
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-
   const save = async () => {
     setError(null);
-    if (priceMan == null || !Number.isFinite(priceMan) || priceMan < 0) {
-      setError("単価を入力してください（万円）。");
+    if (priceMan == null || !Number.isFinite(priceMan) || priceMan <= 0) {
+      setError("単価は0より大きい値を入力してください（万円）。");
       return;
     }
-    for (const r of rows) {
-      if (!r.name.trim()) {
-        setError("手当名を入力してください。");
-        return;
-      }
-      if (r.amount == null || !Number.isFinite(r.amount) || r.amount < 0) {
-        setError("手当額を正しく入力してください（円）。");
-        return;
-      }
+    const allowanceError = validateMasterRows(rows);
+    if (allowanceError) {
+      setError(allowanceError);
+      return;
     }
     setSaving(true);
     try {
       await api.saveMonth(yearMonth, {
         unitPrice: manYenToYen(priceMan),
         overtime: { normalHours, nightHours, holidayHours },
-        allowances: rows.map((r) => ({
-          name: r.name.trim(),
-          amount: r.amount ?? 0,
-          includeInOvertimeBase: r.includeInOvertimeBase,
-        })),
+        allowances: masterRowsToItems(rows),
       });
       await reload();
     } catch (err) {
@@ -353,19 +332,12 @@ function MonthCard({
       <Card.Content className="space-y-4">
         {/* 単価 */}
         <div className="flex flex-wrap items-end gap-3">
-          <NumberField
-            value={priceMan ?? NaN}
-            onChange={(v) => setPriceMan(Number.isNaN(v) ? null : v)}
-            minValue={0}
-            step={1}
-            formatOptions={{ useGrouping: true, maximumFractionDigits: 4 }}
-          >
-            <Label>単価</Label>
-            <NumberField.Group>
-              <NumberField.Input placeholder="例: 85" />
-              <span className="text-muted px-2 text-sm">万円</span>
-            </NumberField.Group>
-          </NumberField>
+          <ManYenField
+            label="単価"
+            value={priceMan}
+            onChange={setPriceMan}
+            placeholder="例: 85"
+          />
           <HoursField
             label="残業（通常）"
             value={normalHours}
@@ -402,65 +374,7 @@ function MonthCard({
         {/* 手当 */}
         <div className="space-y-2">
           <p className="text-muted text-xs font-medium">手当</p>
-          {rows.length === 0 && (
-            <p className="text-muted text-xs">手当はありません。</p>
-          )}
-          {rows.map((r, i) => (
-            <div key={i} className="flex flex-wrap items-end gap-2">
-              <TextField
-                value={r.name}
-                onChange={(v) => updateRow(i, { name: v })}
-                className="max-w-[12rem]"
-              >
-                <Label className="text-xs">手当名</Label>
-                <Input placeholder="例: 職務手当 / 通勤手当" />
-              </TextField>
-              <NumberField
-                value={r.amount ?? NaN}
-                onChange={(v) =>
-                  updateRow(i, { amount: Number.isNaN(v) ? null : v })
-                }
-                minValue={0}
-                step={1000}
-                formatOptions={{ useGrouping: true, maximumFractionDigits: 0 }}
-              >
-                <Label className="text-xs">金額</Label>
-                <NumberField.Group>
-                  <NumberField.Input placeholder="例: 20000" />
-                  <span className="text-muted px-2 text-sm">円</span>
-                </NumberField.Group>
-              </NumberField>
-              <Checkbox
-                isSelected={r.includeInOvertimeBase}
-                onChange={(v) => updateRow(i, { includeInOvertimeBase: v })}
-                className="pb-2"
-              >
-                残業基礎
-              </Checkbox>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="pb-1"
-                onPress={() =>
-                  setRows((prev) => prev.filter((_, idx) => idx !== i))
-                }
-              >
-                削除
-              </Button>
-            </div>
-          ))}
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={() =>
-              setRows((prev) => [
-                ...prev,
-                { name: "", amount: null, includeInOvertimeBase: false },
-              ])
-            }
-          >
-            ＋ 手当を追加
-          </Button>
+          <AllowanceRowsEditor rows={rows} onChange={setRows} />
         </div>
 
         {/* 内訳 */}
@@ -507,35 +421,5 @@ function MonthCard({
         </div>
       </Card.Content>
     </Card>
-  );
-}
-
-/** 時間入力フィールド（0以上、0.5h刻み）。空欄は 0 として扱う。 */
-function HoursField({
-  label,
-  value,
-  onChange,
-  description,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  description?: string;
-}) {
-  return (
-    <NumberField
-      value={value}
-      onChange={(v) => onChange(Number.isNaN(v) ? 0 : v)}
-      minValue={0}
-      step={0.5}
-      formatOptions={{ useGrouping: true, maximumFractionDigits: 2 }}
-    >
-      <Label>{label}</Label>
-      <NumberField.Group>
-        <NumberField.Input placeholder="例: 20" />
-        <span className="text-muted px-2 text-sm">時間</span>
-      </NumberField.Group>
-      {description && <p className="text-muted mt-1 text-xs">{description}</p>}
-    </NumberField>
   );
 }

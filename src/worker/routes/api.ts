@@ -25,8 +25,15 @@ import {
   isRankProvisional,
   type RankHistoryEntry,
 } from "@shared/periods";
+import { findAllowanceDefinition } from "@shared/allowanceMaster";
 import type { PricePoint, SalaryStatus } from "@shared/calc";
 import type { Rank } from "@shared/rateTable";
+import {
+  buildMonthEntryConflictSet,
+  isValidUnitPrice,
+  resolveMonthUpsert,
+  type MonthUpsertBody,
+} from "./monthInput";
 import {
   buildMonthlyIncome,
   isEmploymentTypeKey,
@@ -72,21 +79,6 @@ function isRank(v: unknown): v is Rank {
   return v === 1 || v === 2 || v === 3;
 }
 
-/** 単価（0以上1億円未満の有限数値）か検証する。 */
-function isValidUnitPrice(v: unknown): v is number {
-  return (
-    typeof v === "number" &&
-    Number.isFinite(v) &&
-    v >= 0 &&
-    v <= 100_000_000
-  );
-}
-
-/** 残業時間（0以上の妥当な数値）か検証する。h 上限は安全のため 744（月の総時間）。 */
-function isValidHours(v: unknown): v is number {
-  return typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 744;
-}
-
 // --- GET /api/me ---
 apiApp.get("/api/me", async (c) => {
   const userId = c.get("userId");
@@ -118,12 +110,14 @@ function toOvertimeDTO(r: MonthlyEntryRow): MonthlyOvertimeDTO {
 }
 
 function toAllowanceDTO(r: MonthlyAllowanceRow): AllowanceDTO {
+  const def = findAllowanceDefinition(r.name);
   return {
     id: r.id,
     yearMonth: r.yearMonth,
     name: r.name,
     amount: r.amount,
-    includeInOvertimeBase: r.includeInOvertimeBase === 1,
+    includeInOvertimeBase:
+      def?.includeInOvertimeBase ?? r.includeInOvertimeBase === 1,
   };
 }
 
@@ -155,7 +149,9 @@ async function loadUserData(env: Env, userId: string) {
       .all(),
   ]);
 
+  // 単価 0 は手当・残業のみのプレースホルダ行。月単価一覧には含めない。
   const priceDTOs: MonthlyPriceDTO[] = entries
+    .filter((e) => e.unitPrice > 0)
     .map(toPriceDTO)
     .sort((a, b) => (a.yearMonth < b.yearMonth ? -1 : 1));
   const overtimeDTOs: MonthlyOvertimeDTO[] = entries
@@ -533,41 +529,6 @@ apiApp.post("/api/prices/bulk", async (c) => {
   return c.json({ prices: saved }, 201);
 });
 
-/** 月別入力の手当ペイロードを検証して正規化する（不正なら文字列でエラーを返す）。 */
-function normalizeAllowances(
-  input: unknown,
-): { items: MonthlyAllowanceItem[] } | { error: string } {
-  if (input == null) return { items: [] };
-  if (!Array.isArray(input)) return { error: "手当の形式が不正です。" };
-  const items: MonthlyAllowanceItem[] = [];
-  const seen = new Set<string>();
-  for (const a of input) {
-    const name = typeof (a as { name?: unknown })?.name === "string"
-      ? ((a as { name: string }).name).trim()
-      : "";
-    const amount = (a as { amount?: unknown })?.amount;
-    const includeInOvertimeBase =
-      (a as { includeInOvertimeBase?: unknown })?.includeInOvertimeBase === true;
-    if (!name) return { error: "手当名を入力してください。" };
-    if (name.length > 50) {
-      return { error: "手当名は50文字以内で入力してください。" };
-    }
-    if (seen.has(name)) {
-      return { error: `手当名が重複しています（${name}）。` };
-    }
-    seen.add(name);
-    if (!isValidUnitPrice(amount)) {
-      return { error: "手当額は0以上の妥当な金額で入力してください。" };
-    }
-    items.push({
-      name,
-      amount: Math.round(amount as number),
-      includeInOvertimeBase,
-    });
-  }
-  return { items };
-}
-
 // --- POST /api/months/:yearMonth  (その月の単価・残業・手当をまとめて upsert) ---
 apiApp.post("/api/months/:yearMonth", async (c) => {
   const userId = c.get("userId");
@@ -577,79 +538,71 @@ apiApp.post("/api/months/:yearMonth", async (c) => {
   if (!isValidYearMonth(yearMonth)) {
     return c.json({ error: "年月の形式が不正です（YYYY-MM）。" }, 400);
   }
-  const unitPrice = body?.unitPrice;
-  if (!isValidUnitPrice(unitPrice)) {
-    return c.json({ error: "単価は0以上の妥当な金額で入力してください。" }, 400);
-  }
-  const overtime = body?.overtime ?? {};
-  const normalHours = overtime?.normalHours ?? 0;
-  const nightHours = overtime?.nightHours ?? 0;
-  const holidayHours = overtime?.holidayHours ?? 0;
-  if (
-    !isValidHours(normalHours) ||
-    !isValidHours(nightHours) ||
-    !isValidHours(holidayHours)
-  ) {
-    return c.json(
-      { error: "残業時間は0以上の妥当な時間で入力してください。" },
-      400,
-    );
-  }
-  const normalizedAllowances = normalizeAllowances(body?.allowances);
-  if ("error" in normalizedAllowances) {
-    return c.json({ error: normalizedAllowances.error }, 400);
-  }
 
   const db = getDb(c.env.DB);
-  const now = Date.now();
-  const roundedPrice = Math.round(unitPrice);
-
-  // 入力（単価＋残業）を upsert し、手当はその月の分を入れ替える（delete → insert）。
-  const ops = [
-    db
-      .insert(schema.monthlyEntries)
-      .values({
-        id: newId(),
-        userId,
-        yearMonth,
-        unitPrice: roundedPrice,
-        overtimeNormalHours: normalHours,
-        overtimeNightHours: nightHours,
-        overtimeHolidayHours: holidayHours,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [schema.monthlyEntries.userId, schema.monthlyEntries.yearMonth],
-        set: {
-          unitPrice: roundedPrice,
-          overtimeNormalHours: normalHours,
-          overtimeNightHours: nightHours,
-          overtimeHolidayHours: holidayHours,
-          updatedAt: now,
-        },
-      }),
-    db
-      .delete(schema.monthlyAllowances)
-      .where(
-        and(
-          eq(schema.monthlyAllowances.userId, userId),
-          eq(schema.monthlyAllowances.yearMonth, yearMonth),
-        ),
+  const existing = await db
+    .select()
+    .from(schema.monthlyEntries)
+    .where(
+      and(
+        eq(schema.monthlyEntries.userId, userId),
+        eq(schema.monthlyEntries.yearMonth, yearMonth),
       ),
-    ...normalizedAllowances.items.map((a) =>
-      db.insert(schema.monthlyAllowances).values({
-        id: newId(),
-        userId,
-        yearMonth,
-        name: a.name,
-        amount: a.amount,
-        includeInOvertimeBase: a.includeInOvertimeBase ? 1 : 0,
-        updatedAt: now,
-      }),
-    ),
-  ];
-  await db.batch([ops[0], ...ops.slice(1)]);
+    )
+    .get();
 
+  const resolved = resolveMonthUpsert(body, existing);
+  if ("error" in resolved) {
+    return c.json({ error: resolved.error }, 400);
+  }
+
+  const now = Date.now();
+  const { unitPrice, overtime, replaceAllowances, allowances } = resolved;
+  const patch = body as MonthUpsertBody;
+
+  const entryUpsert = db
+    .insert(schema.monthlyEntries)
+    .values({
+      id: newId(),
+      userId,
+      yearMonth,
+      unitPrice,
+      overtimeNormalHours: overtime.normalHours,
+      overtimeNightHours: overtime.nightHours,
+      overtimeHolidayHours: overtime.holidayHours,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [schema.monthlyEntries.userId, schema.monthlyEntries.yearMonth],
+      set: buildMonthEntryConflictSet(patch, resolved, now),
+    });
+
+  if (replaceAllowances) {
+    await db.batch([
+      entryUpsert,
+      db
+        .delete(schema.monthlyAllowances)
+        .where(
+          and(
+            eq(schema.monthlyAllowances.userId, userId),
+            eq(schema.monthlyAllowances.yearMonth, yearMonth),
+          ),
+        ),
+      ...allowances.map((a) =>
+        db.insert(schema.monthlyAllowances).values({
+          id: newId(),
+          userId,
+          yearMonth,
+          name: a.name,
+          amount: a.amount,
+          includeInOvertimeBase: a.includeInOvertimeBase ? 1 : 0,
+          updatedAt: now,
+        }),
+      ),
+    ]);
+  } else {
+    await db.batch([entryUpsert]);
+  }
   await reconcileSnapshots(c.env, userId);
   return c.json({ ok: true });
 });
@@ -744,6 +697,7 @@ apiApp.delete("/api/rank/:id", async (c) => {
       and(eq(schema.rankHistory.id, id), eq(schema.rankHistory.userId, userId)),
     )
     .run();
+  await reconcileSnapshots(c.env, userId);
   return c.json({ ok: true });
 });
 

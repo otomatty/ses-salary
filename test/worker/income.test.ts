@@ -49,6 +49,33 @@ describe("POST /api/months（単価・残業・手当をまとめて保存）", 
     expect(ot?.normalHours).toBe(30);
     expect(ot?.nightHours).toBe(1);
     expect(body.allowances.filter((a) => a.yearMonth === baseYm)).toHaveLength(2);
+    const job = body.allowances.find(
+      (a) => a.yearMonth === baseYm && a.name === "職務手当",
+    );
+    const commute = body.allowances.find(
+      (a) => a.yearMonth === baseYm && a.name === "通勤手当",
+    );
+    expect(job?.includeInOvertimeBase).toBe(true);
+    expect(commute?.includeInOvertimeBase).toBe(false);
+  });
+
+  it("クライアントが誤った includeInOvertimeBase を送ってもマスタで上書きする", async () => {
+    await postJson(
+      `/api/months/${baseYm}`,
+      {
+        unitPrice: 850_000,
+        overtime: { normalHours: 0, nightHours: 0, holidayHours: 0 },
+        allowances: [
+          { name: "職務手当", amount: 20_000, includeInOvertimeBase: false },
+        ],
+      },
+      cookie,
+    );
+    const body = await dashboard(cookie);
+    const job = body.allowances.find(
+      (a) => a.yearMonth === baseYm && a.name === "職務手当",
+    );
+    expect(job?.includeInOvertimeBase).toBe(true);
   });
 
   it("再保存は同月分を入れ替える（手当を減らすと反映される）", async () => {
@@ -123,12 +150,77 @@ describe("POST /api/months（単価・残業・手当をまとめて保存）", 
     );
     expect(badAllowance.status).toBe(400);
 
+    const unknownAllowance = await postJson(
+      `/api/months/${baseYm}`,
+      {
+        unitPrice: 850_000,
+        overtime: {},
+        allowances: [{ name: "未知手当", amount: 1000, includeInOvertimeBase: false }],
+      },
+      cookie,
+    );
+    expect(unknownAllowance.status).toBe(200);
+    const afterUnknown = await dashboard(cookie);
+    expect(
+      afterUnknown.allowances.find(
+        (a) => a.yearMonth === baseYm && a.name === "未知手当",
+      ),
+    ).toEqual(
+      expect.objectContaining({ amount: 1000, includeInOvertimeBase: false }),
+    );
+
     const badPrice = await postJson(
       `/api/months/${baseYm}`,
       { unitPrice: -1, overtime: {}, allowances: [] },
       cookie,
     );
     expect(badPrice.status).toBe(400);
+  });
+
+  it("手当のみ保存（単価省略）で unitPrice 0 の行ができ、prices 一覧には出ない", async () => {
+    const ym = "2099-01";
+    const res = await postJson(
+      `/api/months/${ym}`,
+      {
+        allowances: [
+          { name: "通勤手当", amount: 5000, includeInOvertimeBase: false },
+        ],
+      },
+      cookie,
+    );
+    expect(res.status).toBe(200);
+    const body = await dashboard(cookie);
+    expect(body.prices.some((p) => p.yearMonth === ym)).toBe(false);
+    expect(
+      body.allowances.filter((a) => a.yearMonth === ym),
+    ).toHaveLength(1);
+  });
+
+  it("残業のみ更新で単価・手当は維持される", async () => {
+    await postJson(
+      `/api/months/${baseYm}`,
+      {
+        unitPrice: 850_000,
+        overtime: { normalHours: 5, nightHours: 0, holidayHours: 0 },
+        allowances: [
+          { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+        ],
+      },
+      cookie,
+    );
+    await postJson(
+      `/api/months/${baseYm}`,
+      { overtime: { normalHours: 25, nightHours: 1, holidayHours: 0 } },
+      cookie,
+    );
+    const body = await dashboard(cookie);
+    expect(body.prices.find((p) => p.yearMonth === baseYm)?.unitPrice).toBe(
+      850_000,
+    );
+    expect(body.overtime.find((o) => o.yearMonth === baseYm)?.normalHours).toBe(
+      25,
+    );
+    expect(body.allowances.filter((a) => a.yearMonth === baseYm)).toHaveLength(1);
   });
 });
 
