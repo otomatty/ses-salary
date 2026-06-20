@@ -1,19 +1,26 @@
-import { useMemo, useState } from "react";
-import { Button, Card, ProgressBar } from "@heroui/react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Alert, Button, Card, ProgressBar } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
 import type { DashboardResponse } from "@shared/types";
-import { PriceInputTabs } from "../components/PriceForms";
+import { api } from "../api";
+import { AllowanceForm } from "../components/AllowanceForm";
+import { OvertimeForm } from "../components/OvertimeForm";
+import { PriceYearEditor } from "../components/PriceYearEditor";
 import { RankForm } from "../components/RankForm";
 import { markOnboardingDone } from "../lib/onboarding";
 
-const STEP_LABELS = ["ようこそ", "月単価の入力", "評価ランク", "完了"] as const;
+const STEP_LABELS = [
+  "ようこそ",
+  "月単価の入力",
+  "評価ランク",
+  "特別手当",
+  "残業時間",
+  "完了",
+] as const;
 
 /**
  * 初回利用者向けのオンボーディング専用ページ。
- * 「①アプリ説明 → ②月単価入力 → ③評価ランク設定 → ④完了」の順に案内する。
- * 先に月単価を入力することで、続く評価ランク設定で単価に応じた帯付きランク
- * （例: G-1 / G-2 / G-3）を提示できる。
- * 各ステップはスキップ可能で、完了/スキップ時に {@link markOnboardingDone} を記録する。
+ * 月単価 → 評価ランク → 特別手当 → 残業時間 → 完了の順に案内する。
  */
 export function Onboarding({
   dashboard,
@@ -24,6 +31,12 @@ export function Onboarding({
 }) {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+
+  const [priceDraft, setPriceDraft] = useState<Map<string, number>>(
+    () => new Map(dashboard.prices.map((p) => [p.yearMonth, p.unitPrice])),
+  );
+  const [priceSaving, setPriceSaving] = useState(false);
+  const [priceError, setPriceError] = useState<string | null>(null);
 
   const priceCount = dashboard.prices.length;
 
@@ -36,6 +49,52 @@ export function Onboarding({
     markOnboardingDone();
     navigate({ to: "/" });
   };
+
+  const savePricesAndNext = async () => {
+    setPriceError(null);
+    const server = new Map(
+      dashboard.prices.map((p) => [p.yearMonth, p.unitPrice]),
+    );
+    const upserts: { yearMonth: string; unitPrice: number }[] = [];
+    for (const [ym, price] of priceDraft) {
+      if (server.get(ym) !== price) upserts.push({ yearMonth: ym, unitPrice: price });
+    }
+    const deletes: string[] = [];
+    for (const ym of server.keys()) {
+      if (!priceDraft.has(ym)) deletes.push(ym);
+    }
+
+    if (upserts.length === 0 && deletes.length === 0) {
+      setStep(2);
+      return;
+    }
+
+    setPriceSaving(true);
+    try {
+      if (upserts.length > 0) await api.savePricesBulk(upserts);
+      await Promise.all(deletes.map((ym) => api.deleteMonth(ym)));
+      await reload();
+      setStep(2);
+    } catch (err) {
+      setPriceError(err instanceof Error ? err.message : "保存に失敗しました");
+    } finally {
+      setPriceSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    document.documentElement.classList.add("scrollbar-hidden");
+    return () => document.documentElement.classList.remove("scrollbar-hidden");
+  }, []);
+
+  const stepFooter = (backStep: number, saveButton: ReactNode) => (
+    <div className="flex items-center justify-between">
+      <Button variant="ghost" onPress={() => setStep(backStep)}>
+        ← 戻る
+      </Button>
+      {saveButton}
+    </div>
+  );
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -78,23 +137,39 @@ export function Onboarding({
           <Card.Header>
             <Card.Title className="text-sm">① 月単価を入力</Card.Title>
             <Card.Description className="text-xs">
-              直近の案件単価を登録しましょう。連続する月が同じ単価なら「一括入力」が便利です。
+              直近1年の各月をクリックして単価を入力します。ドラッグ／Shift+クリックで範囲を選ぶと、同じ単価をまとめて設定できます。
             </Card.Description>
           </Card.Header>
           <Card.Content className="space-y-4">
-            <PriceInputTabs reload={reload} />
+            <PriceYearEditor value={priceDraft} onChange={setPriceDraft} />
+
+            {priceError && (
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Description>{priceError}</Alert.Description>
+                </Alert.Content>
+              </Alert>
+            )}
 
             <p className="text-muted text-xs">
-              現在 <strong className="text-foreground">{priceCount} 件</strong>{" "}
-              登録済みです。給与計算には直前四半期の3ヶ月分の単価が必要です。
+              給与計算には直前四半期（3ヶ月）分の単価が必要です。入力内容は「次へ」を押すまで保存されません。
             </p>
 
             <div className="flex items-center justify-between">
-              <Button variant="ghost" onPress={() => setStep(0)}>
+              <Button
+                variant="ghost"
+                onPress={() => setStep(0)}
+                isDisabled={priceSaving}
+              >
                 ← 戻る
               </Button>
-              <Button variant="primary" onPress={() => setStep(2)}>
-                次へ →
+              <Button
+                variant="primary"
+                onPress={savePricesAndNext}
+                isDisabled={priceSaving}
+              >
+                {priceSaving ? "保存中…" : "保存して次へ →"}
               </Button>
             </div>
           </Card.Content>
@@ -106,38 +181,78 @@ export function Onboarding({
           <Card.Header>
             <Card.Title className="text-sm">② 評価ランクを設定</Card.Title>
             <Card.Description className="text-xs">
-              人事評価で決まる評価ランクを選びます。入力済みの単価に応じて G-1 /
-              G-2 / G-3
-              のように表示されます。未設定のままだと暫定ランク1で計算されます。
+              人事評価で決まる評価ランクを、四半期（1–3 / 4–6 / 7–9 /
+              10–12月）ごとに選びます。直前四半期の平均単価 ×
+              還元率で基本給が決まります。
             </Card.Description>
           </Card.Header>
           <Card.Content>
             <RankForm
-              initialRank={dashboard.currentRank}
               prices={dashboard.prices}
+              priceMap={priceDraft}
+              rankHistory={dashboard.rankHistory}
               settings={dashboard.settings}
               reload={reload}
               saveLabel="保存して次へ →"
+              advanceWithoutChanges
               onSaved={() => setStep(3)}
-              footer={(saveButton) => (
-                <div className="flex items-center justify-between">
-                  <Button variant="ghost" onPress={() => setStep(1)}>
-                    ← 戻る
-                  </Button>
-                  <div className="flex gap-2">
-                    <Button variant="secondary" onPress={() => setStep(3)}>
-                      あとで設定
-                    </Button>
-                    {saveButton}
-                  </div>
-                </div>
-              )}
+              footer={(saveButton) => stepFooter(1, saveButton)}
             />
           </Card.Content>
         </Card>
       )}
 
       {step === 3 && (
+        <Card>
+          <Card.Header>
+            <Card.Title className="text-sm">③ 特別手当を設定</Card.Title>
+            <Card.Description className="text-xs">
+              付与する手当を一覧から選び、金額を入力します。月をクリック／ドラッグで複数選択し「選択月に適用」で反映できます。
+              残業基礎への算入は手当ごとにシステムで決まっています（職務手当などは残業代の計算に含まれます）。
+            </Card.Description>
+          </Card.Header>
+          <Card.Content>
+            <AllowanceForm
+              allowances={dashboard.allowances}
+              priceMap={priceDraft}
+              rankHistory={dashboard.rankHistory}
+              settings={dashboard.settings}
+              reload={reload}
+              saveLabel="保存して次へ →"
+              advanceWithoutChanges
+              onSaved={() => setStep(4)}
+              footer={(saveButton) => stepFooter(2, saveButton)}
+            />
+          </Card.Content>
+        </Card>
+      )}
+
+      {step === 4 && (
+        <Card>
+          <Card.Header>
+            <Card.Title className="text-sm">④ 残業時間を入力</Card.Title>
+            <Card.Description className="text-xs">
+              各月の残業時間を入力すると、基本給に加えて残業代を見込めます。
+              みなし残業（固定時間外手当）を超えた分のみ加算されます。
+            </Card.Description>
+          </Card.Header>
+          <Card.Content>
+            <OvertimeForm
+              overtime={dashboard.overtime}
+              priceMap={priceDraft}
+              rankHistory={dashboard.rankHistory}
+              settings={dashboard.settings}
+              reload={reload}
+              saveLabel="保存して次へ →"
+              advanceWithoutChanges
+              onSaved={() => setStep(5)}
+              footer={(saveButton) => stepFooter(3, saveButton)}
+            />
+          </Card.Content>
+        </Card>
+      )}
+
+      {step === 5 && (
         <Card>
           <Card.Header>
             <Card.Title>設定が完了しました</Card.Title>
@@ -160,10 +275,10 @@ export function Onboarding({
               </li>
             </ul>
             <p className="text-muted text-xs">
-              月単価や評価ランクは、あとから「月単価の入力」「設定」画面でいつでも追加・変更できます。
+              月単価・手当・残業・評価ランクは、あとから各入力画面や「設定」でいつでも変更できます。
             </p>
             <div className="flex items-center justify-between">
-              <Button variant="ghost" onPress={() => setStep(2)}>
+              <Button variant="ghost" onPress={() => setStep(4)}>
                 ← 戻る
               </Button>
               <Button variant="primary" onPress={finish}>

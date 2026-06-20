@@ -79,6 +79,12 @@ export function formatManYen(yen: number): string {
   return `${text}万円`;
 }
 
+/** ストリップ表示用: 万円単位の端数を切り捨てて整数万円で表示する（計算値は変えない）。 */
+export function formatManYenFloorDisplay(yen: number): string {
+  const man = Math.floor(yen / MAN_YEN);
+  return `${man.toLocaleString("ja-JP")}万円`;
+}
+
 /** 還元率の表示（％, 小数2桁） */
 export function formatRate(rate: number): string {
   return `${rate.toFixed(2)}%`;

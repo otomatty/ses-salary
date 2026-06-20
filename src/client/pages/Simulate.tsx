@@ -3,8 +3,6 @@ import {
   Button,
   Card,
   Chip,
-  Label,
-  NumberField,
   Radio,
   RadioGroup,
   Tabs,
@@ -20,39 +18,12 @@ import {
   latestTwoMonths,
 } from "@shared/simulate";
 import type { Rank } from "@shared/rateTable";
+import { ManYenField } from "../components/ManYenField";
 import { SalaryBreakdownCard } from "../components/SalaryBreakdownCard";
 import { StatusGuidance } from "../components/StatusGuidance";
 import { useNavigate } from "@tanstack/react-router";
 
 type Mode = "recent2" | "all3";
-
-/** 仮単価入力用の NumberField（万円単位）。空欄は null として扱う。 */
-function PriceField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  /** 万円単位の値 */
-  value: number | null;
-  onChange: (v: number | null) => void;
-}) {
-  return (
-    <NumberField
-      value={value ?? NaN}
-      onChange={(v) => onChange(Number.isNaN(v) ? null : v)}
-      minValue={0}
-      step={1}
-      formatOptions={{ useGrouping: true, maximumFractionDigits: 4 }}
-    >
-      <Label>{label}</Label>
-      <NumberField.Group>
-        <NumberField.Input placeholder="例: 80" />
-        <span className="text-muted px-2 text-sm">万円</span>
-      </NumberField.Group>
-    </NumberField>
-  );
-}
 
 /**
  * 単価シミュレーション（PRD §5.2 Should）。
@@ -163,22 +134,18 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
             selectedKey={mode}
             onSelectionChange={(k) => setMode(k as Mode)}
           >
-            <Tabs.List>
-              <Tabs.Tab
-                id="recent2"
-                className="rounded-md transition-colors data-selected:bg-primary/10 data-selected:text-primary"
-              >
-                直近2ヶ月＋仮単価1ヶ月
-                <Tabs.Indicator />
-              </Tabs.Tab>
-              <Tabs.Tab
-                id="all3"
-                className="rounded-md transition-colors data-selected:bg-primary/10 data-selected:text-primary"
-              >
-                3ヶ月すべて仮入力
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            </Tabs.List>
+            <Tabs.ListContainer>
+              <Tabs.List aria-label="入力モード">
+                <Tabs.Tab id="recent2">
+                  直近2ヶ月＋仮単価1ヶ月
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="all3">
+                  3ヶ月すべて仮入力
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs.ListContainer>
           </Tabs>
           <p className="text-muted text-xs">
             {mode === "recent2"
@@ -254,7 +221,7 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
                     </div>
                   ))}
                 </div>
-                <PriceField
+                <ManYenField
                   label={`${hypoMonth}（仮単価）`}
                   value={hypoPrice}
                   onChange={setHypoPrice}
@@ -264,7 +231,7 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
           ) : (
             <div className="flex flex-wrap gap-3">
               {all3Months.map((ym, i) => (
-                <PriceField
+                <ManYenField
                   key={ym}
                   label={`${ym}（仮単価）`}
                   value={all3Prices[i]}

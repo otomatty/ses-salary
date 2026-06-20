@@ -10,19 +10,16 @@ import type {
 import type { Rank } from "@shared/rateTable";
 import type { EmploymentTypeKey } from "@shared/income";
 
-/** 月別保存（単価・残業・手当をまとめて）のペイロード。 */
+/** 月別保存（単価・残業・手当）。各フィールドは省略可能（省略時は既存値を維持、新規行は 0）。 */
 export interface MonthInput {
-  unitPrice: number;
-  overtime: {
+  unitPrice?: number;
+  overtime?: {
     normalHours: number;
     nightHours: number;
     holidayHours: number;
   };
-  allowances: {
-    name: string;
-    amount: number;
-    includeInOvertimeBase: boolean;
-  }[];
+  /** 手当名はマスタ登録名のみ。includeInOvertimeBase はサーバがマスタから決定する。 */
+  allowances?: { name: string; amount: number }[];
 }
 
 async function request<T>(

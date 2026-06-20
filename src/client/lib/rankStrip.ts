@@ -1,0 +1,94 @@
+import { bandAtMonth } from "@shared/bandAtMonth";
+import { isQuarterCalculable } from "@shared/quarterSalary";
+import { quarterStartMonth } from "@shared/periods";
+import type { Rank } from "@shared/rateTable";
+import { selectedQuarterStarts } from "./quarterStrip";
+
+/** ランク選択 UI の初期値（未設定四半期）。 */
+export const DEFAULT_PICKER_RANK: Rank = 1;
+
+/** 選択集合の比較用キー（順不同）。 */
+export function selectionKey(selection: Iterable<string>): string {
+  return [...selection].sort().join(",");
+}
+
+/** 四半期の試算ランク（未設定は 1）。 */
+export function rankForQuarter(
+  quarterStart: string,
+  draft: Map<string, Rank>,
+): Rank {
+  return draft.get(quarterStartMonth(quarterStart)) ?? DEFAULT_PICKER_RANK;
+}
+
+/** セル上バッジのラベル（例: G-2）。 */
+export function rankBadgeLabel(
+  ym: string,
+  rank: Rank,
+  priceMap: Map<string, number>,
+): string {
+  const band = bandAtMonth(ym, priceMap);
+  if (band?.kind === "rank") return `${band.code}-${rank}`;
+  return `R${rank}`;
+}
+
+/**
+ * セル上バッジ。算出可能な四半期は draft のランク（未設定は 1）を常時表示する。
+ */
+export function rankBadgeForCell(
+  ym: string,
+  draft: Map<string, Rank>,
+  priceMap: Map<string, number>,
+): string | null {
+  const qs = quarterStartMonth(ym);
+  if (!isQuarterCalculable(qs, priceMap)) return null;
+  return rankBadgeLabel(ym, rankForQuarter(qs, draft), priceMap);
+}
+
+/** 選択四半期へランクを即時反映した下書きを返す（キーは四半期開始月）。 */
+export function applyRankDraft(
+  draft: Map<string, Rank>,
+  selection: Iterable<string>,
+  rank: Rank,
+): Map<string, Rank> {
+  const next = new Map(draft);
+  for (const qs of selectedQuarterStarts(selection)) {
+    next.set(qs, rank);
+  }
+  return next;
+}
+
+/** 選択四半期の明示設定を下書きから削除する（表示はランク 1 に戻る）。 */
+export function clearRankDraft(
+  draft: Map<string, Rank>,
+  selection: Iterable<string>,
+): Map<string, Rank> {
+  const next = new Map(draft);
+  for (const qs of selectedQuarterStarts(selection)) {
+    next.delete(qs);
+  }
+  return next;
+}
+
+/** サーバ履歴を四半期開始月キーの下書きに正規化する。 */
+export function normalizeRankDraft(
+  entries: Iterable<{ effectiveFrom: string; rank: Rank }>,
+): Map<string, Rank> {
+  const sorted = [...entries].sort((a, b) =>
+    a.effectiveFrom < b.effectiveFrom ? -1 : a.effectiveFrom > b.effectiveFrom ? 1 : 0,
+  );
+  const draft = new Map<string, Rank>();
+  for (const { effectiveFrom, rank } of sorted) {
+    draft.set(quarterStartMonth(effectiveFrom), rank);
+  }
+  return draft;
+}
+
+/** 選択四半期の先頭に設定されているランク（未設定は 1）。 */
+export function pickerRankForSelection(
+  selectedQuarters: string[],
+  draft: Map<string, Rank>,
+): Rank {
+  const qs = selectedQuarters[0];
+  if (!qs) return DEFAULT_PICKER_RANK;
+  return rankForQuarter(qs, draft);
+}

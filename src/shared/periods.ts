@@ -229,6 +229,46 @@ export function computeSalaryForQuarter(
 }
 
 /**
+ * {@link computeSalaryForQuarter} と同じ単価条件で、評価ランクを明示指定して給与を算出する。
+ * 四半期ごとに独立したランク（未設定時は 1）を UI で試算するときに使う。
+ */
+export function computeSalaryForQuarterWithRank(
+  quarterStart: string,
+  priceMap: Map<string, number>,
+  rank: Rank,
+  consultRate?: number | null,
+): SalaryResult | null {
+  const targetStart = quarterStartMonth(quarterStart);
+  const sourceQuarterStart = prevQuarterStart(targetStart);
+  const sourceMonths = quarterMonths(sourceQuarterStart);
+  const points: PricePoint[] = [];
+  for (const ym of sourceMonths) {
+    const price = priceMap.get(ym);
+    if (price !== undefined) points.push({ yearMonth: ym, unitPrice: price });
+  }
+
+  if (points.length === sourceMonths.length) {
+    return {
+      appliedFrom: targetStart,
+      periodLabel: quarterLabel(targetStart),
+      breakdown: calcSalary(points, rank, consultRate),
+      rankProvisional: false,
+    };
+  }
+
+  if (points.length > 0 && isMidQuarterDebut(points, sourceMonths, priceMap)) {
+    return {
+      appliedFrom: targetStart,
+      periodLabel: quarterLabel(targetStart),
+      breakdown: buildDebutBreakdown(points),
+      rankProvisional: false,
+    };
+  }
+
+  return null;
+}
+
+/**
  * 直前四半期が「四半期の途中（第2月・第3月）でデビュー/入社した四半期」かどうか。
  * 条件:
  *  - この四半期に付いた最初の単価が、全データ中の最古月（＝デビュー月）と一致する

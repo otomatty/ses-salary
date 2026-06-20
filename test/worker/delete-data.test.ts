@@ -18,7 +18,7 @@ describe("DELETE /api/user/data", () => {
         unitPrice: 710000,
         overtime: { normalHours: 25, nightHours: 0, holidayHours: 0 },
         allowances: [
-          { name: "役職手当", amount: 30000, includeInOvertimeBase: false },
+          { name: "役職手当", amount: 30000 },
         ],
       },
       cookie,
