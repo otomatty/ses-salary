@@ -1,0 +1,39 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="エンジニア給与計算">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="112" y1="112" x2="400" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景（白基調・maskable セーフエリア内に主要素を収める） -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- コイン本体 -->
+  <circle cx="256" cy="256" r="148" fill="url(#coin)"/>
+  <circle cx="256" cy="256" r="148" fill="none" stroke="#b45309" stroke-width="6" opacity="0.35"/>
+  <circle cx="256" cy="256" r="120" fill="none" stroke="#ffffff" stroke-width="10" opacity="0.55"/>
+
+  <!-- 円グラフのセグメント（コイン上に給与の内訳を象徴） -->
+  <!-- セグメント1: 上部 約40% 青 -->
+  <path d="M256 256 L256 136 A120 120 0 0 1 359.9 316 Z" fill="#2563eb" opacity="0.92"/>
+  <!-- セグメント2: 右下 約30% 緑 -->
+  <path d="M256 256 L359.9 316 A120 120 0 0 1 152.1 316 Z" fill="#10b981" opacity="0.92"/>
+  <!-- セグメント3: 左 残り 紫 -->
+  <path d="M256 256 L152.1 316 A120 120 0 0 1 256 136 Z" fill="#7c3aed" opacity="0.92"/>
+
+  <!-- 中央の円（円記号の土台） -->
+  <circle cx="256" cy="256" r="60" fill="#ffffff"/>
+
+  <!-- 円記号 ¥ -->
+  <g stroke="#0f172a" stroke-width="11" stroke-linecap="round" fill="none">
+    <path d="M256 226 L256 290"/>
+    <path d="M232 222 L256 256 L280 222"/>
+    <path d="M234 258 L278 258"/>
+    <path d="M234 274 L278 274"/>
+  </g>
+</svg>
