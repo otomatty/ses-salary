@@ -4,6 +4,7 @@ import {
   applyRankDraft,
   clearRankDraft,
   DEFAULT_PICKER_RANK,
+  legacyRankMigrationUpserts,
   normalizeRankDraft,
   pickerRankForSelection,
   rankBadgeForCell,
@@ -170,6 +171,31 @@ describe("normalizeRankDraft", () => {
       { effectiveFrom: "2026-05", rank: 3 },
     ]);
     expect(draft.get("2026-04")).toBe(2);
+  });
+});
+
+describe("legacyRankMigrationUpserts", () => {
+  it("旧 mid-quarter 行削除前に四半期開始月へ upsert する", () => {
+    const history = [{ effectiveFrom: "2026-05", rank: 3 as const }];
+    const serverDraft = normalizeRankDraft(history);
+    const migrations = legacyRankMigrationUpserts(
+      history,
+      serverDraft,
+      serverDraft,
+      [],
+    );
+    expect(migrations).toEqual([{ effectiveFrom: "2026-04", rank: 3 }]);
+  });
+
+  it("四半期開始月の行が既にあれば移行不要", () => {
+    const history = [
+      { effectiveFrom: "2026-04", rank: 2 as const },
+      { effectiveFrom: "2026-05", rank: 3 as const },
+    ];
+    const serverDraft = normalizeRankDraft(history);
+    expect(
+      legacyRankMigrationUpserts(history, serverDraft, serverDraft, []),
+    ).toEqual([]);
   });
 });
 

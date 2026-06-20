@@ -100,6 +100,31 @@ export function normalizeRankDraft(
   return draft;
 }
 
+/** 四半期開始月以外の旧ランク行を削除する前に必要な移行 upsert を返す。 */
+export function legacyRankMigrationUpserts(
+  rankHistory: { effectiveFrom: string; rank: Rank }[],
+  serverDraft: Map<string, Rank>,
+  rankDraft: Map<string, Rank>,
+  pendingUpserts: { effectiveFrom: string; rank: Rank }[],
+): { effectiveFrom: string; rank: Rank }[] {
+  const migrations: { effectiveFrom: string; rank: Rank }[] = [];
+  const upsertKeys = new Set(pendingUpserts.map((u) => u.effectiveFrom));
+  for (const h of rankHistory) {
+    const quarter = quarterStartMonth(h.effectiveFrom);
+    if (h.effectiveFrom === quarter) continue;
+    const hasQuarterStartRow = rankHistory.some(
+      (x) => x.effectiveFrom === quarter,
+    );
+    if (hasQuarterStartRow || upsertKeys.has(quarter)) continue;
+    migrations.push({
+      effectiveFrom: quarter,
+      rank: rankDraft.get(quarter) ?? serverDraft.get(quarter) ?? h.rank,
+    });
+    upsertKeys.add(quarter);
+  }
+  return migrations;
+}
+
 /** 選択四半期の先頭に設定されているランク（未設定は 1）。 */
 export function pickerRankForSelection(
   selectedQuarters: string[],

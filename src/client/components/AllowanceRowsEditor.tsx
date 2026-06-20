@@ -1,5 +1,5 @@
 import { Chip, Label } from "@heroui/react";
-import { ALLOWANCE_MASTER } from "@shared/allowanceMaster";
+import { findAllowanceDefinition } from "@shared/allowanceMaster";
 import {
   defaultAmountManYenForMaster,
   type AllowanceMasterRowDraft,
@@ -27,13 +27,10 @@ export function AllowanceRowsEditor({
     updateRow(name, patch);
   };
 
-  const masterByName = new Map(ALLOWANCE_MASTER.map((d) => [d.name, d]));
-
   return (
     <div className="space-y-2">
       {rows.map((r) => {
-        const def = masterByName.get(r.name);
-        if (!def) return null;
+        const def = findAllowanceDefinition(r.name);
         const inputId = `allowance-${r.name}`;
         return (
           <div
@@ -57,10 +54,12 @@ export function AllowanceRowsEditor({
               label="金額"
               value={r.enabled ? r.amountManYen : null}
               onChange={(v) => updateRow(r.name, { amountManYen: v })}
-              placeholder={def.defaultAmount != null ? "既定あり" : "例: 2"}
+              placeholder={
+                def?.defaultAmount != null ? "既定あり" : "例: 2"
+              }
               className="man-yen-field w-36"
             />
-            {def.includeInOvertimeBase ? (
+            {def?.includeInOvertimeBase || r.includeInOvertimeBase ? (
               <Chip size="sm" variant="soft" color="accent" className="mb-1">
                 残業基礎
               </Chip>
@@ -69,6 +68,11 @@ export function AllowanceRowsEditor({
                 残業基礎外
               </Chip>
             )}
+            {!def ? (
+              <Chip size="sm" variant="soft" className="text-muted mb-1">
+                旧データ
+              </Chip>
+            ) : null}
           </div>
         );
       })}
