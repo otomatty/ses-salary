@@ -1,6 +1,8 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import type { ApiUser } from "@shared/types";
+import { findTier, latestUnitPrice } from "@shared/rateTable";
 import { api } from "../api";
+import { useAppContext } from "../context/AppContext";
 import { BottomNav } from "../components/BottomNav";
 import { DotPattern } from "../components/DotPattern";
 import { NavMenu } from "../components/NavMenu";
@@ -15,6 +17,11 @@ export function Layout({
   user: ApiUser;
   onLogout: () => void;
 }) {
+  const { dashboard } = useAppContext();
+  // 直近月の単価から本人の現在ティアを判定する（単価未登録なら null）。
+  const latest = dashboard ? latestUnitPrice(dashboard.prices) : null;
+  const tier = latest === null ? null : findTier(latest);
+
   const handleLogout = async () => {
     try {
       await api.logout();
@@ -34,7 +41,7 @@ export function Layout({
           <div className="flex items-center gap-1">
             <NavMenu />
             <ThemeToggle />
-            <UserMenu user={user} onLogout={handleLogout} />
+            <UserMenu user={user} onLogout={handleLogout} tier={tier} />
           </div>
         </div>
       </header>

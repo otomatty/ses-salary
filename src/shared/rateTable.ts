@@ -174,3 +174,75 @@ export function findBand(avgUnitPrice: number): RateBand {
   // 理論上ここには到達しない（FIXED が min:0 で全てを拾う）
   return RATE_BANDS[RATE_BANDS.length - 1];
 }
+
+/**
+ * Tech ランク制度のティア（格付け）。
+ * 還元率テーブルの帯（A〜M）とは別に、単価そのものを Gold / Silver / Bronze の
+ * 3段階で表す「見た目の格」。視覚的な特別感を出すための表示用区分。
+ */
+export type Tier = "gold" | "silver" | "bronze";
+
+/** 表示順（高い順）。凡例やグルーピングで使う。 */
+export const TIER_ORDER: Tier[] = ["gold", "silver", "bronze"];
+
+/** ティアの下限（円）。スライド「ランク制度の導入」の単価帯に対応する。 */
+export const TIER_GOLD_MIN = 900_000;
+export const TIER_SILVER_MIN = 600_000;
+
+export interface TierInfo {
+  tier: Tier;
+  /** 正式名称（例: "Tech Gold"） */
+  label: string;
+  /** 短縮名（例: "Gold"） */
+  short: string;
+  /** 単価レンジの説明（例: "単価 900千円〜"） */
+  rangeLabel: string;
+}
+
+export const TIERS: Record<Tier, TierInfo> = {
+  gold: {
+    tier: "gold",
+    label: "Tech Gold",
+    short: "Gold",
+    rangeLabel: "単価 900千円〜",
+  },
+  silver: {
+    tier: "silver",
+    label: "Tech Silver",
+    short: "Silver",
+    rangeLabel: "単価 600〜899千円",
+  },
+  bronze: {
+    tier: "bronze",
+    label: "Tech Bronze",
+    short: "Bronze",
+    rangeLabel: "単価 〜599千円",
+  },
+};
+
+/**
+ * 単価（円）から Tech ランクのティアを判定する。
+ * 境界（90万 / 60万）は還元率テーブルの帯境界（H / D）と一致する。
+ */
+export function findTier(unitPrice: number): Tier {
+  if (unitPrice >= TIER_GOLD_MIN) return "gold";
+  if (unitPrice >= TIER_SILVER_MIN) return "silver";
+  return "bronze";
+}
+
+/** 帯が属するティア（早見表のグルーピング用）。帯下限で判定する。 */
+export function tierForBand(band: RateBand): Tier {
+  return findTier(band.min);
+}
+
+/**
+ * 月単価の配列から最新月（年月の降順で先頭）の単価を返す。
+ * エントリが無ければ null。個人の現在ティア判定に使う。
+ */
+export function latestUnitPrice(
+  prices: { yearMonth: string; unitPrice: number }[],
+): number | null {
+  if (prices.length === 0) return null;
+  // "YYYY-MM" は辞書順 = 時系列順。
+  return prices.reduce((a, b) => (b.yearMonth > a.yearMonth ? b : a)).unitPrice;
+}

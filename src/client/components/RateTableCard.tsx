@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { Card, Table } from "@heroui/react";
 import { formatYen, formatRate } from "@shared/calc";
 import { CONSULT_GUIDANCE } from "@shared/guidance";
-import { RATE_BANDS } from "@shared/rateTable";
+import { RATE_BANDS, TIER_ORDER, TIERS, tierForBand } from "@shared/rateTable";
+import { TierBadge } from "./TierBadge";
 
 /**
  * 早見表マスタ（還元率テーブル）。会社共通の固定マスタを表示する。
@@ -16,6 +17,12 @@ export function RateTableCard() {
         <Card.Description className="text-xs">
           会社共通の固定マスタです。平均単価の帯と評価ランクから還元率が決まります。
         </Card.Description>
+        {/* Tech ランク（ティア）の凡例。単価帯を金・銀・銅で色分けする。 */}
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {TIER_ORDER.map((t) => (
+            <TierBadge key={t} tier={t} size="sm" showRange />
+          ))}
+        </div>
       </Card.Header>
       <Card.Content>
         <Table>
@@ -24,6 +31,7 @@ export function RateTableCard() {
               <Table.Column id="band" isRowHeader>
                 帯
               </Table.Column>
+              <Table.Column id="tier">ティア</Table.Column>
               <Table.Column id="range">平均単価（円）</Table.Column>
               <Table.Column id="r1" className="text-right">
                 ランク1
@@ -77,9 +85,16 @@ export function RateTableCard() {
                     </>
                   );
                 }
+                const tier = tierForBand(b);
                 return (
                   <Table.Row key={b.code} id={b.code}>
                     <Table.Cell className="font-medium">{b.code}</Table.Cell>
+                    <Table.Cell className="whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="tier-dot" data-tier={tier} aria-hidden />
+                        {TIERS[tier].short}
+                      </span>
+                    </Table.Cell>
                     <Table.Cell className="text-muted whitespace-nowrap">
                       {range}
                     </Table.Cell>

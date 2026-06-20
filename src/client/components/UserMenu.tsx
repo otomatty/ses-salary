@@ -1,6 +1,8 @@
 import { Avatar, Dropdown, Label } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
 import type { ApiUser } from "@shared/types";
+import type { Tier } from "@shared/rateTable";
+import { TierBadge } from "./TierBadge";
 
 function userInitials(name: string): string {
   const trimmed = name.trim();
@@ -16,9 +18,12 @@ function userInitials(name: string): string {
 export function UserMenu({
   user,
   onLogout,
+  tier = null,
 }: {
   user: ApiUser;
   onLogout: () => void;
+  /** 直近月の単価から判定した本人の現在ティア（未登録なら null）。 */
+  tier?: Tier | null;
 }) {
   const navigate = useNavigate();
 
@@ -36,7 +41,10 @@ export function UserMenu({
         <Avatar size="sm">
           <Avatar.Fallback>{userInitials(user.name)}</Avatar.Fallback>
         </Avatar>
-        <span className="max-w-32 truncate text-sm">{user.name}</span>
+        <span className="hidden max-w-32 truncate text-sm sm:inline">
+          {user.name}
+        </span>
+        {tier && <TierBadge tier={tier} size="sm" />}
       </Dropdown.Trigger>
       <Dropdown.Popover>
         <div className="px-3 pt-3 pb-1">
@@ -51,6 +59,11 @@ export function UserMenu({
               </p>
             </div>
           </div>
+          {tier && (
+            <div className="mt-2">
+              <TierBadge tier={tier} size="sm" showRange />
+            </div>
+          )}
         </div>
         <Dropdown.Menu aria-label="ユーザーメニュー" onAction={handleAction}>
           <Dropdown.Item id="settings" textValue="設定">
