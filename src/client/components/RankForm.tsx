@@ -113,11 +113,14 @@ export function RankForm({
           toUpsert.push({ effectiveFrom: ym, rank });
         }
       }
-      const toDelete = rankHistory.filter((h) => {
-        const quarter = quarterStartMonth(h.effectiveFrom);
-        if (!rankDraft.has(quarter)) return true;
-        return h.effectiveFrom !== quarter;
-      });
+      for (const ym of serverDraft.keys()) {
+        if (!rankDraft.has(ym)) {
+          toUpsert.push({ effectiveFrom: ym, rank: 1 });
+        }
+      }
+      const toDelete = rankHistory.filter(
+        (h) => h.effectiveFrom !== quarterStartMonth(h.effectiveFrom),
+      );
 
       if (
         toUpsert.length === 0 &&

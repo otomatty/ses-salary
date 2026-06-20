@@ -59,9 +59,18 @@ export function normalizeAllowances(
     if (!isValidUnitPrice(amount)) {
       return { error: "手当額は0以上の妥当な金額で入力してください。" };
     }
+    const includeInOvertimeBase =
+      (a as { includeInOvertimeBase?: unknown }).includeInOvertimeBase === true;
     const normalized = normalizeAllowanceItem(name, amount as number);
-    if ("error" in normalized) return normalized;
-    items.push(normalized);
+    if ("error" in normalized) {
+      items.push({
+        name,
+        amount: Math.round(amount as number),
+        includeInOvertimeBase,
+      });
+    } else {
+      items.push(normalized);
+    }
   }
   return { items };
 }

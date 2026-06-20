@@ -159,7 +159,15 @@ describe("POST /api/months（単価・残業・手当をまとめて保存）", 
       },
       cookie,
     );
-    expect(unknownAllowance.status).toBe(400);
+    expect(unknownAllowance.status).toBe(200);
+    const afterUnknown = await dashboard(cookie);
+    expect(
+      afterUnknown.allowances.find(
+        (a) => a.yearMonth === baseYm && a.name === "未知手当",
+      ),
+    ).toEqual(
+      expect.objectContaining({ amount: 1000, includeInOvertimeBase: false }),
+    );
 
     const badPrice = await postJson(
       `/api/months/${baseYm}`,

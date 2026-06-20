@@ -53,7 +53,29 @@ describe("resolveMonthUpsert", () => {
       { allowances: [{ name: "未知", amount: 1000 }] },
       undefined,
     );
-    expect(r).toEqual({ error: "未登録の手当名です（未知）。" });
+    expect("error" in r).toBe(false);
+    if ("error" in r) return;
+    expect(r.allowances).toEqual([
+      { name: "未知", amount: 1000, includeInOvertimeBase: false },
+    ]);
+  });
+
+  it("マスタ外の旧データ手当は includeInOvertimeBase を保持", () => {
+    const r = resolveMonthUpsert(
+      {
+        allowances: [
+          { name: "カスタム手当", amount: 5000, includeInOvertimeBase: true },
+        ],
+      },
+      undefined,
+    );
+    expect("error" in r).toBe(false);
+    if ("error" in r) return;
+    expect(r.allowances[0]).toEqual({
+      name: "カスタム手当",
+      amount: 5000,
+      includeInOvertimeBase: true,
+    });
   });
 
   it("非オブジェクト JSON はエラー", () => {
