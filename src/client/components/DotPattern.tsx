@@ -138,7 +138,11 @@ function DotPatternCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    let rafId: number;
+    // 再描画はイベント駆動。アイドル時は frame を予約しないことで常時負荷を避ける。
+    let rafId: number | null = null;
+    const requestDraw = () => {
+      if (rafId == null) rafId = requestAnimationFrame(draw);
+    };
     const dpr = Math.min(window.devicePixelRatio ?? 1, 2);
 
     const resize = () => {
@@ -155,22 +159,30 @@ function DotPatternCanvas({
     };
 
     const draw = () => {
+      rafId = null;
       const { w, h } = sizeRef.current;
-      if (w <= 0 || h <= 0) {
-        rafId = requestAnimationFrame(draw);
-        return;
-      }
+      if (w <= 0 || h <= 0) return;
 
       const target = mouseTargetRef.current;
       let smoothed = mouseSmoothedRef.current;
+      // lerp が収束しきっていなければ次フレームを予約して動きを継続する。
+      let animating = false;
 
       if (target) {
         if (!smoothed) {
           smoothed = { x: target.x, y: target.y };
           mouseSmoothedRef.current = smoothed;
         } else {
-          smoothed.x += (target.x - smoothed.x) * SMOOTHING;
-          smoothed.y += (target.y - smoothed.y) * SMOOTHING;
+          const dx = target.x - smoothed.x;
+          const dy = target.y - smoothed.y;
+          if (Math.hypot(dx, dy) > 0.5) {
+            smoothed.x += dx * SMOOTHING;
+            smoothed.y += dy * SMOOTHING;
+            animating = true;
+          } else {
+            smoothed.x = target.x;
+            smoothed.y = target.y;
+          }
         }
       } else {
         mouseSmoothedRef.current = null;
@@ -187,8 +199,8 @@ function DotPatternCanvas({
 
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
-          const px = col * width + cx;
-          const py = row * heightStep + cy;
+          const px = col * width + x + cx;
+          const py = row * heightStep + y + cy;
           let r = cr;
           let fillR: number;
           let fillG: number;
@@ -242,7 +254,7 @@ function DotPatternCanvas({
         }
       }
 
-      rafId = requestAnimationFrame(draw);
+      if (animating) requestDraw();
     };
 
     const onMouseMove = (e: MouseEvent) => {
@@ -251,28 +263,40 @@ function DotPatternCanvas({
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
       };
+      requestDraw();
     };
 
     const onMouseOut = (e: MouseEvent) => {
       if (e.relatedTarget == null) {
         mouseTargetRef.current = null;
+        requestDraw();
       }
     };
 
     resize();
-    const ro = new ResizeObserver(resize);
+    const ro = new ResizeObserver(() => {
+      resize();
+      requestDraw();
+    });
     ro.observe(container);
     window.addEventListener("mousemove", onMouseMove, { passive: true });
     document.documentElement.addEventListener("mouseout", onMouseOut);
-    rafId = requestAnimationFrame(draw);
+    // テーマ切替（html の `dark` クラス変化）でも色を更新する。
+    const themeObserver = new MutationObserver(() => requestDraw());
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    requestDraw();
 
     return () => {
       ro.disconnect();
+      themeObserver.disconnect();
       window.removeEventListener("mousemove", onMouseMove);
       document.documentElement.removeEventListener("mouseout", onMouseOut);
-      cancelAnimationFrame(rafId);
+      if (rafId != null) cancelAnimationFrame(rafId);
     };
-  }, [width, heightStep, cx, cy, cr, cursorHighlightRadius, cursorHighlightScale]);
+  }, [width, heightStep, x, y, cx, cy, cr, cursorHighlightRadius, cursorHighlightScale]);
 
   return (
     <div
@@ -338,13 +362,13 @@ function DotPatternSVG({
         const col = i % cols;
         const row = Math.floor(i / cols);
         return {
-          x: col * width + cx,
-          y: row * heightStep + cy,
+          x: col * width + x + cx,
+          y: row * heightStep + y + cy,
           delay: Math.random() * 5,
           duration: Math.random() * 3 + 2,
         };
       }),
-    [cols, rows, width, heightStep, cx, cy]
+    [cols, rows, width, heightStep, x, y, cx, cy]
   );
 
   return (
