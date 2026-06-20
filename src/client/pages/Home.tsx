@@ -87,14 +87,12 @@ export function Home({
           result={dashboard.current}
           emptyText="今期に適用される給与を計算するには、前四半期（3ヶ月）の単価が必要です。"
           income={dashboard.currentMonthIncome}
-          tier={tier}
         />
         <SummaryCard
           label="来期の給与（予測）"
           result={dashboard.next}
           emptyText={dashboard.nextPending ?? "来期の給与はまだ計算できません。"}
           highlight
-          tier={tier}
         />
       </div>
     </div>
@@ -131,7 +129,6 @@ function SummaryCard({
   emptyText,
   highlight = false,
   income = null,
-  tier = null,
 }: {
   label: string;
   result: SalaryResult | null;
@@ -139,15 +136,17 @@ function SummaryCard({
   highlight?: boolean;
   /** 当月の月収内訳（基本給 + 手当 + 残業）。今期カードでのみ渡す。 */
   income?: MonthlyIncomeDTO | null;
-  /** 本人の現在ティア。左端のアクセントバーに反映する。 */
-  tier?: Tier | null;
 }) {
   const navigate = useNavigate();
   const guidance = result ? guidanceForStatus(result.breakdown.status) : null;
+  // その期の平均単価から、この期固有のティアを判定する（カードの枠線色に反映）。
+  const tier: Tier | null = result
+    ? findTier(result.breakdown.avgUnitPrice)
+    : null;
 
   return (
     <Card
-      className={`${tier ? "tier-accent" : ""}${highlight ? " ring-accent/40 ring-2" : ""}`}
+      className={`${tier ? "tier-border" : ""}${highlight ? " ring-accent/40 ring-2" : ""}`}
       data-tier={tier ?? undefined}
     >
       <Card.Header className="flex flex-row items-center justify-between">
