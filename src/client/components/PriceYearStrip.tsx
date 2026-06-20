@@ -1,5 +1,6 @@
 import { formatManYen } from "@shared/calc";
 import { currentYearMonth } from "@shared/periods";
+import { buildYearMonthCells } from "../lib/yearMonthStrip";
 import { YearMonthStrip } from "./YearMonthStrip";
 
 /**
@@ -24,7 +25,11 @@ export function PriceYearStrip({
   onCellPointerEnter?: (yearMonth: string) => void;
   onCellActivate?: (yearMonth: string) => void;
 }) {
-  const setCount = priceMap.size;
+  const visibleMonths = buildYearMonthCells(endMonth).map((c) => c.yearMonth);
+  const setCount = visibleMonths.reduce(
+    (count, ym) => count + (priceMap.has(ym) ? 1 : 0),
+    0,
+  );
 
   return (
     <YearMonthStrip

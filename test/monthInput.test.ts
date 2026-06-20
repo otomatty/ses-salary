@@ -55,4 +55,13 @@ describe("resolveMonthUpsert", () => {
     );
     expect(r).toEqual({ error: "未登録の手当名です（未知）。" });
   });
+
+  it("非オブジェクト JSON はエラー", () => {
+    expect(resolveMonthUpsert([], existing)).toEqual({
+      error: "リクエスト形式が不正です。",
+    });
+    expect(resolveMonthUpsert("x", existing)).toEqual({
+      error: "リクエスト形式が不正です。",
+    });
+  });
 });

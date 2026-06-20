@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import type { Rank } from "@shared/rateTable";
 import { RankYearEditor } from "../src/client/components/RankYearEditor";
 
 const priceMap = new Map<string, number>([
@@ -18,7 +19,7 @@ const priceMap = new Map<string, number>([
 ]);
 
 function monthCell(label: RegExp) {
-  return screen.getByRole("listitem", { name: label });
+  return screen.getByRole("option", { name: label });
 }
 
 function rankOption(rank: 1 | 2 | 3) {

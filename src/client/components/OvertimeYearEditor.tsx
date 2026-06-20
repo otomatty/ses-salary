@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Button, Disclosure } from "@heroui/react";
 import {
   monthHasPayableSalary,
@@ -41,8 +41,7 @@ export function OvertimeYearEditor({
   const cells = useMemo(() => buildYearMonthCells(endMonth), [endMonth]);
 
   const isPayable = useCallback(
-    (ym: string) =>
-      monthHasPayableSalary(ym, priceMap, rankDraft, consultRate),
+    (ym: string) => monthHasPayableSalary(ym, priceMap, rankDraft, consultRate),
     [priceMap, rankDraft, consultRate],
   );
 
@@ -64,19 +63,14 @@ export function OvertimeYearEditor({
   const [normalHours, setNormalHours] = useState(0);
   const [nightHours, setNightHours] = useState(0);
   const [holidayHours, setHolidayHours] = useState(0);
-  const prevSelectionKeyRef = useRef("");
-
   useEffect(() => {
-    const key = [...selection].sort().join(",");
-    if (key === prevSelectionKeyRef.current) return;
-    prevSelectionKeyRef.current = key;
     if (selectedList.length === 1) {
       const ot = overtimeForMonth(value, selectedList[0]!);
       setNormalHours(ot.normalHours);
       setNightHours(ot.nightHours);
       setHolidayHours(ot.holidayHours);
     }
-  }, [selection, selectedList, value]);
+  }, [selectedList, value]);
 
   const configuredCount = useMemo(
     () =>

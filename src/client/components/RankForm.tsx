@@ -103,6 +103,7 @@ export function RankForm({
     isConsult && consultRate !== settings.consultRate;
 
   const save = async () => {
+    if (saving) return;
     setSaving(true);
     setError(null);
     try {
@@ -112,9 +113,11 @@ export function RankForm({
           toUpsert.push({ effectiveFrom: ym, rank });
         }
       }
-      const toDelete = rankHistory.filter(
-        (h) => !rankDraft.has(quarterStartMonth(h.effectiveFrom)),
-      );
+      const toDelete = rankHistory.filter((h) => {
+        const quarter = quarterStartMonth(h.effectiveFrom);
+        if (!rankDraft.has(quarter)) return true;
+        return h.effectiveFrom !== quarter;
+      });
 
       if (
         toUpsert.length === 0 &&

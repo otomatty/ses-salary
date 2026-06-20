@@ -16,11 +16,13 @@ export interface AllowanceMasterRowDraft {
   enabled: boolean;
   /** 万円単位。空欄は null。 */
   amountManYen: number | null;
+  /** マスタ外（旧データ）手当の残業基礎フラグ。 */
+  includeInOvertimeBase?: boolean;
 }
 
 export function defaultAmountManYenForMaster(name: string): number | null {
   const def = findAllowanceDefinition(name);
-  if (!def?.defaultAmount) return null;
+  if (def?.defaultAmount == null) return null;
   return yenToManYen(def.defaultAmount);
 }
 
@@ -38,7 +40,7 @@ export function masterRowsFromItems(
   items: MonthlyAllowanceItem[],
 ): AllowanceMasterRowDraft[] {
   const byName = new Map(items.map((i) => [i.name, i]));
-  return ALLOWANCE_MASTER.map((def) => {
+  const rows: AllowanceMasterRowDraft[] = ALLOWANCE_MASTER.map((def) => {
     const item = byName.get(def.name);
     if (item) {
       return {
@@ -54,17 +56,35 @@ export function masterRowsFromItems(
         def.defaultAmount != null ? yenToManYen(def.defaultAmount) : null,
     };
   });
+  for (const item of items) {
+    if (findAllowanceDefinition(item.name)) continue;
+    rows.push({
+      name: item.name,
+      enabled: true,
+      amountManYen: yenToManYen(item.amount),
+      includeInOvertimeBase: item.includeInOvertimeBase,
+    });
+  }
+  return rows;
 }
 
 export function masterRowsFromDtos(
   allowances: AllowanceDTO[],
 ): AllowanceMasterRowDraft[] {
-  return masterRowsFromItems(
-    allowances.flatMap((a) => {
-      const normalized = normalizeAllowanceItem(a.name, a.amount);
-      return "error" in normalized ? [] : [normalized];
-    }),
-  );
+  const items: MonthlyAllowanceItem[] = [];
+  for (const a of allowances) {
+    const normalized = normalizeAllowanceItem(a.name, a.amount);
+    if ("error" in normalized) {
+      items.push({
+        name: a.name,
+        amount: a.amount,
+        includeInOvertimeBase: a.includeInOvertimeBase,
+      });
+    } else {
+      items.push(normalized);
+    }
+  }
+  return masterRowsFromItems(items);
 }
 
 /** マスタ選択状態を保存用の手当一覧に変換する。 */
@@ -77,9 +97,21 @@ export function masterRowsToItems(
     if (r.amountManYen == null || !Number.isFinite(r.amountManYen) || r.amountManYen < 0) {
       continue;
     }
-    const normalized = normalizeAllowanceItem(r.name, manYenToYen(r.amountManYen));
-    if ("error" in normalized) continue;
-    items.push(normalized);
+    const def = findAllowanceDefinition(r.name);
+    if (def) {
+      const normalized = normalizeAllowanceItem(
+        r.name,
+        manYenToYen(r.amountManYen),
+      );
+      if ("error" in normalized) continue;
+      items.push(normalized);
+      continue;
+    }
+    items.push({
+      name: r.name,
+      amount: manYenToYen(r.amountManYen),
+      includeInOvertimeBase: r.includeInOvertimeBase ?? false,
+    });
   }
   return items;
 }
@@ -95,7 +127,7 @@ export function validateMasterRows(rows: AllowanceMasterRowDraft[]): string | nu
       return `${r.name}の金額を正しく入力してください（万円）。`;
     }
     if (!findAllowanceDefinition(r.name)) {
-      return `未登録の手当名です（${r.name}）。`;
+      continue;
     }
   }
   return null;

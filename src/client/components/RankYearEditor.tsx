@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@heroui/react";
 import { bandAtMonth } from "@shared/bandAtMonth";
 import {
@@ -17,7 +17,6 @@ import {
   rankBadgeForCell,
   rankBadgeLabel,
   rankForQuarter,
-  selectionKey,
 } from "../lib/rankStrip";
 import { useMonthStripSelection } from "../lib/useMonthStripSelection";
 import { RankSelector } from "./RankSelector";
@@ -59,14 +58,10 @@ export function RankYearEditor({
   const [pickerRank, setPickerRank] = useState<Rank>(() =>
     pickerRankForSelection(selectedQuarters, value),
   );
-  const prevSelectionKeyRef = useRef(selectionKey(selection));
 
   useEffect(() => {
-    const key = selectionKey(selection);
-    if (key === prevSelectionKeyRef.current) return;
-    prevSelectionKeyRef.current = key;
     setPickerRank(pickerRankForSelection(selectedQuarters, value));
-  }, [selection, selectedQuarters, value]);
+  }, [selectedQuarters, value]);
 
   const configuredCount = value.size;
 

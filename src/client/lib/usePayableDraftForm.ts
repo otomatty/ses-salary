@@ -68,6 +68,7 @@ export function usePayableDraftForm<T>({
   }, [draft, serverDraft, equal, getValue]);
 
   const save = async () => {
+    if (saving) return;
     setSaving(true);
     setError(null);
     try {

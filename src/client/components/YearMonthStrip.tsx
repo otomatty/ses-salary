@@ -49,7 +49,12 @@ export function YearMonthStrip({
       }
     >
       {legend}
-      <div className="year-month-strip__row" role="list" aria-label={ariaLabel}>
+      <div
+        className="year-month-strip__row"
+        role={interactive ? "listbox" : "list"}
+        aria-multiselectable={interactive ? true : undefined}
+        aria-label={ariaLabel}
+      >
         {cells.map((cell, i) => {
           const { variant, detail, tooltip, badge } = renderCell(cell, i, cells);
           const isSelected = selectedMonths?.has(cell.yearMonth) ?? false;
@@ -73,7 +78,7 @@ export function YearMonthStrip({
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  role="listitem"
+                  role={interactive ? "option" : "listitem"}
                   aria-label={tooltip}
                   aria-selected={interactive ? isSelected : undefined}
                   onPointerDown={

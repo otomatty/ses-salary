@@ -76,9 +76,26 @@ export function normalizeRankDraft(
   const sorted = [...entries].sort((a, b) =>
     a.effectiveFrom < b.effectiveFrom ? -1 : a.effectiveFrom > b.effectiveFrom ? 1 : 0,
   );
+  const byQuarter = new Map<string, { effectiveFrom: string; rank: Rank }>();
+  for (const entry of sorted) {
+    const quarter = quarterStartMonth(entry.effectiveFrom);
+    const isQuarterStart = entry.effectiveFrom === quarter;
+    const prev = byQuarter.get(quarter);
+    if (!prev) {
+      byQuarter.set(quarter, entry);
+      continue;
+    }
+    if (isQuarterStart) {
+      byQuarter.set(quarter, entry);
+      continue;
+    }
+    if (prev.effectiveFrom !== quarter) {
+      byQuarter.set(quarter, entry);
+    }
+  }
   const draft = new Map<string, Rank>();
-  for (const { effectiveFrom, rank } of sorted) {
-    draft.set(quarterStartMonth(effectiveFrom), rank);
+  for (const [quarter, { rank }] of byQuarter) {
+    draft.set(quarter, rank);
   }
   return draft;
 }

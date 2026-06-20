@@ -29,8 +29,10 @@ import { findAllowanceDefinition } from "@shared/allowanceMaster";
 import type { PricePoint, SalaryStatus } from "@shared/calc";
 import type { Rank } from "@shared/rateTable";
 import {
+  buildMonthEntryConflictSet,
   isValidUnitPrice,
   resolveMonthUpsert,
+  type MonthUpsertBody,
 } from "./monthInput";
 import {
   buildMonthlyIncome,
@@ -556,6 +558,7 @@ apiApp.post("/api/months/:yearMonth", async (c) => {
 
   const now = Date.now();
   const { unitPrice, overtime, replaceAllowances, allowances } = resolved;
+  const patch = body as MonthUpsertBody;
 
   const entryUpsert = db
     .insert(schema.monthlyEntries)
@@ -571,13 +574,7 @@ apiApp.post("/api/months/:yearMonth", async (c) => {
     })
     .onConflictDoUpdate({
       target: [schema.monthlyEntries.userId, schema.monthlyEntries.yearMonth],
-      set: {
-        unitPrice,
-        overtimeNormalHours: overtime.normalHours,
-        overtimeNightHours: overtime.nightHours,
-        overtimeHolidayHours: overtime.holidayHours,
-        updatedAt: now,
-      },
+      set: buildMonthEntryConflictSet(patch, resolved, now),
     });
 
   if (replaceAllowances) {
@@ -700,6 +697,7 @@ apiApp.delete("/api/rank/:id", async (c) => {
       and(eq(schema.rankHistory.id, id), eq(schema.rankHistory.userId, userId)),
     )
     .run();
+  await reconcileSnapshots(c.env, userId);
   return c.json({ ok: true });
 });
 

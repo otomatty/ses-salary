@@ -260,8 +260,8 @@ function MonthCard({
 
   const save = async () => {
     setError(null);
-    if (priceMan == null || !Number.isFinite(priceMan) || priceMan < 0) {
-      setError("単価を入力してください（万円）。");
+    if (priceMan == null || !Number.isFinite(priceMan) || priceMan <= 0) {
+      setError("単価は0より大きい値を入力してください（万円）。");
       return;
     }
     const allowanceError = validateMasterRows(rows);

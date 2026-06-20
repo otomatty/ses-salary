@@ -128,7 +128,14 @@ export function resolveMonthUpsert(
   body: unknown,
   existing: MonthlyEntryRow | undefined,
 ): ResolvedMonthUpsert | { error: string } {
-  const patch = (body ?? null) as MonthUpsertBody | null;
+  if (
+    body == null ||
+    typeof body !== "object" ||
+    Array.isArray(body)
+  ) {
+    return { error: "リクエスト形式が不正です。" };
+  }
+  const patch = body as MonthUpsertBody;
 
   const unitPrice = resolveUnitPrice(patch, existing);
   if (typeof unitPrice !== "number") return unitPrice;
@@ -145,4 +152,34 @@ export function resolveMonthUpsert(
     replaceAllowances: allowances.replaceAllowances,
     allowances: allowances.replaceAllowances ? allowances.items : [],
   };
+}
+
+/** 部分更新時に onConflictDoUpdate で上書きする列だけを返す。 */
+export function buildMonthEntryConflictSet(
+  patch: MonthUpsertBody,
+  resolved: ResolvedMonthUpsert,
+  now: number,
+): {
+  updatedAt: number;
+  unitPrice?: number;
+  overtimeNormalHours?: number;
+  overtimeNightHours?: number;
+  overtimeHolidayHours?: number;
+} {
+  const set: {
+    updatedAt: number;
+    unitPrice?: number;
+    overtimeNormalHours?: number;
+    overtimeNightHours?: number;
+    overtimeHolidayHours?: number;
+  } = { updatedAt: now };
+  if (patch.unitPrice !== undefined) {
+    set.unitPrice = resolved.unitPrice;
+  }
+  if (patch.overtime !== undefined) {
+    set.overtimeNormalHours = resolved.overtime.normalHours;
+    set.overtimeNightHours = resolved.overtime.nightHours;
+    set.overtimeHolidayHours = resolved.overtime.holidayHours;
+  }
+  return set;
 }

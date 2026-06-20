@@ -4,6 +4,7 @@ import {
   allowancesEqual,
   buildAllowanceDraftFromDashboard,
   emptyMasterRows,
+  masterRowsFromDtos,
   masterRowsToItems,
   type AllowanceDraft,
 } from "../src/client/lib/allowanceStrip";
@@ -52,6 +53,34 @@ describe("masterRowsToItems", () => {
 
   it("未選択・未入力の行は除外する", () => {
     expect(masterRowsToItems(emptyMasterRows())).toEqual([]);
+  });
+});
+
+describe("masterRowsFromDtos", () => {
+  it("マスタ外の旧データ手当を保持する", () => {
+    const rows = masterRowsFromDtos([
+      {
+        id: "1",
+        yearMonth: "2026-01",
+        name: "カスタム手当",
+        amount: 5_000,
+        includeInOvertimeBase: true,
+      },
+    ]);
+    const custom = rows.find((r) => r.name === "カスタム手当");
+    expect(custom).toEqual({
+      name: "カスタム手当",
+      enabled: true,
+      amountManYen: 0.5,
+      includeInOvertimeBase: true,
+    });
+    expect(masterRowsToItems(rows)).toEqual([
+      {
+        name: "カスタム手当",
+        amount: 5_000,
+        includeInOvertimeBase: true,
+      },
+    ]);
   });
 });
 

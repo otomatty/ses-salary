@@ -163,6 +163,14 @@ describe("normalizeRankDraft", () => {
     expect(draft.get("2026-01")).toBe(2);
     expect(draft.get("2026-04")).toBe(3);
   });
+
+  it("同一四半期に開始月と途中月がある場合は開始月を優先", () => {
+    const draft = normalizeRankDraft([
+      { effectiveFrom: "2026-04", rank: 2 },
+      { effectiveFrom: "2026-05", rank: 3 },
+    ]);
+    expect(draft.get("2026-04")).toBe(2);
+  });
 });
 
 describe("formatSelectionQuartersLabel", () => {
