@@ -4,6 +4,7 @@ import {
   applyRankDraft,
   clearRankDraft,
   DEFAULT_PICKER_RANK,
+  defaultRankBoundaryUpserts,
   legacyRankMigrationUpserts,
   normalizeRankDraft,
   pickerRankForSelection,
@@ -171,6 +172,44 @@ describe("normalizeRankDraft", () => {
       { effectiveFrom: "2026-05", rank: 3 },
     ]);
     expect(draft.get("2026-04")).toBe(2);
+  });
+});
+
+describe("defaultRankBoundaryUpserts", () => {
+  it("明示ランクのみ設定した後続四半期に rank 1 境界を書く", () => {
+    const rankDraft = new Map([["2026-01", 3 as const]]);
+    const boundaries = defaultRankBoundaryUpserts(
+      rankDraft,
+      new Map(),
+      ["2026-01", "2026-04", "2026-07"],
+      [{ effectiveFrom: "2026-01", rank: 3 }],
+    );
+    expect(boundaries).toEqual([{ effectiveFrom: "2026-04", rank: 1 }]);
+  });
+
+  it("サーバーに既存行がある四半期はスキップ", () => {
+    const rankDraft = new Map([["2026-01", 3 as const]]);
+    const serverDraft = new Map([["2026-04", 1 as const]]);
+    expect(
+      defaultRankBoundaryUpserts(
+        rankDraft,
+        serverDraft,
+        ["2026-01", "2026-04"],
+        [],
+      ),
+    ).toEqual([]);
+  });
+
+  it("直前の明示ランクが 1 なら境界不要", () => {
+    const rankDraft = new Map([["2026-01", 1 as const]]);
+    expect(
+      defaultRankBoundaryUpserts(
+        rankDraft,
+        new Map(),
+        ["2026-04", "2026-07"],
+        [],
+      ),
+    ).toEqual([]);
   });
 });
 

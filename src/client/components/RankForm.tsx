@@ -7,7 +7,12 @@ import { currentYearMonth, quarterStartMonth } from "@shared/periods";
 import { findBand, type Rank, type RateBand } from "@shared/rateTable";
 import type { MonthlyPriceDTO, RankHistoryDTO, UserSettingsDTO } from "@shared/types";
 import { api } from "../api";
-import { normalizeRankDraft, legacyRankMigrationUpserts } from "../lib/rankStrip";
+import {
+  calculableQuarterStartsInStrip,
+  defaultRankBoundaryUpserts,
+  legacyRankMigrationUpserts,
+  normalizeRankDraft,
+} from "../lib/rankStrip";
 import { RankYearEditor } from "./RankYearEditor";
 
 /**
@@ -126,6 +131,14 @@ export function RankForm({
           rankHistory,
           serverDraft,
           rankDraft,
+          toUpsert,
+        ),
+      );
+      toUpsert.push(
+        ...defaultRankBoundaryUpserts(
+          rankDraft,
+          serverDraft,
+          calculableQuarterStartsInStrip(priceMap),
           toUpsert,
         ),
       );

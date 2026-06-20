@@ -1,8 +1,9 @@
 import { bandAtMonth } from "@shared/bandAtMonth";
 import { isQuarterCalculable } from "@shared/quarterSalary";
-import { quarterStartMonth } from "@shared/periods";
+import { currentYearMonth, quarterStartMonth } from "@shared/periods";
 import type { Rank } from "@shared/rateTable";
 import { selectedQuarterStarts } from "./quarterStrip";
+import { buildYearMonthCells } from "./yearMonthStrip";
 
 /** ランク選択 UI の初期値（未設定四半期）。 */
 export const DEFAULT_PICKER_RANK: Rank = 1;
@@ -98,6 +99,57 @@ export function normalizeRankDraft(
     draft.set(quarter, rank);
   }
   return draft;
+}
+
+/** ストリップ表示範囲内で給与試算可能な四半期開始月（昇順・重複なし）。 */
+export function calculableQuarterStartsInStrip(
+  priceMap: Map<string, number>,
+  endMonth: string = currentYearMonth(),
+): string[] {
+  const quarters = new Set<string>();
+  for (const cell of buildYearMonthCells(endMonth)) {
+    const qs = quarterStartMonth(cell.yearMonth);
+    if (isQuarterCalculable(qs, priceMap)) {
+      quarters.add(qs);
+    }
+  }
+  return [...quarters].sort();
+}
+
+/**
+ * UI 上ランク 1（下書き未設定）の四半期について、直前の明示ランクが 1 以外なら
+ * rank 1 の境界 upsert を生成する（rankAt の持ち越しと表示の不一致を防ぐ）。
+ */
+export function defaultRankBoundaryUpserts(
+  rankDraft: Map<string, Rank>,
+  serverDraft: Map<string, Rank>,
+  visibleQuarterStarts: string[],
+  pendingUpserts: { effectiveFrom: string; rank: Rank }[],
+): { effectiveFrom: string; rank: Rank }[] {
+  const upsertKeys = new Set(pendingUpserts.map((u) => u.effectiveFrom));
+  const boundaries: { effectiveFrom: string; rank: Rank }[] = [];
+  const effectiveDraft = new Map(rankDraft);
+
+  for (const qs of visibleQuarterStarts) {
+    if (effectiveDraft.has(qs)) continue;
+    if (serverDraft.has(qs)) continue;
+    if (upsertKeys.has(qs)) continue;
+
+    const sortedEntries = [...effectiveDraft.entries()].sort(([a], [b]) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    );
+    let priorRank: Rank | undefined;
+    for (const [q, rank] of sortedEntries) {
+      if (q < qs) priorRank = rank;
+      else break;
+    }
+    if (priorRank !== undefined && priorRank !== DEFAULT_PICKER_RANK) {
+      boundaries.push({ effectiveFrom: qs, rank: DEFAULT_PICKER_RANK });
+      effectiveDraft.set(qs, DEFAULT_PICKER_RANK);
+      upsertKeys.add(qs);
+    }
+  }
+  return boundaries;
 }
 
 /** 四半期開始月以外の旧ランク行を削除する前に必要な移行 upsert を返す。 */

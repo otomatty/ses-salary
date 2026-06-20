@@ -59,7 +59,7 @@ export function AllowanceRowsEditor({
               }
               className="man-yen-field w-36"
             />
-            {def?.includeInOvertimeBase || r.includeInOvertimeBase ? (
+            {(def ? def.includeInOvertimeBase : r.includeInOvertimeBase) ? (
               <Chip size="sm" variant="soft" color="accent" className="mb-1">
                 残業基礎
               </Chip>
