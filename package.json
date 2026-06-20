@@ -6,6 +6,7 @@
   "packageManager": "bun@1.3.11",
   "scripts": {
     "dev": "vite",
+    "generate-pwa-assets": "pwa-assets-generator",
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "CLOUDFLARE_ENV=production vite build && wrangler deploy",
@@ -38,12 +39,14 @@
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.4",
     "@types/react-dom": "^19.0.2",
+    "@vite-pwa/assets-generator": "^1.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "drizzle-kit": "^0.30.1",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.3",
     "vite": "^6.0.7",
+    "vite-plugin-pwa": "^1.3.0",
     "vitest": "^2.1.8",
     "wrangler": "^4.0.0"
   }
