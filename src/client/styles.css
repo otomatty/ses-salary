@@ -3,6 +3,23 @@
 
 /* color-scheme は HeroUI のテーマ（html の `dark` クラス）が管理する。 */
 
+/* ===========================================================================
+   テーマ切替アニメーション（View Transitions API / Magic UI 参考）
+   ThemeToggle がクリック位置から新テーマを円形に展開する。
+   =========================================================================== */
+/* 既定のクロスフェードを無効化し、クリップパスの円形リビールだけを見せる。 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Firefox 対策: スナップショット直後〜JSアニメ開始までの一瞬、新テーマが
+   全面表示されないよう、収縮状態のクリップを CSS で固定する。 */
+[data-theme-vt="active"]::view-transition-new(root) {
+  clip-path: var(--theme-vt-clip-from);
+}
+
 html,
 body,
 #root {
