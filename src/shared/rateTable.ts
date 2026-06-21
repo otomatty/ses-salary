@@ -195,7 +195,7 @@ export interface TierInfo {
   label: string;
   /** 短縮名（例: "Gold"） */
   short: string;
-  /** 単価レンジの説明（例: "単価 900千円〜"） */
+  /** 単価レンジの説明（例: "単価 90万円〜"） */
   rangeLabel: string;
 }
 
@@ -204,19 +204,19 @@ export const TIERS: Record<Tier, TierInfo> = {
     tier: "gold",
     label: "Tech Gold",
     short: "Gold",
-    rangeLabel: "単価 900千円〜",
+    rangeLabel: "単価 90万円〜",
   },
   silver: {
     tier: "silver",
     label: "Tech Silver",
     short: "Silver",
-    rangeLabel: "単価 600〜899千円",
+    rangeLabel: "単価 60〜89.9万円",
   },
   bronze: {
     tier: "bronze",
     label: "Tech Bronze",
     short: "Bronze",
-    rangeLabel: "単価 〜599千円",
+    rangeLabel: "単価 〜59.9万円",
   },
 };
 
