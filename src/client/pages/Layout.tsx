@@ -33,7 +33,7 @@ export function Layout({
   return (
     <div className="text-foreground relative min-h-screen">
       <DotPattern cursorHighlight className="fixed inset-0 z-0" />
-      <header className="bg-surface/80 border-border sticky top-0 z-10 border-b backdrop-blur">
+      <header className="bg-surface/80 border-border sticky top-0 z-30 border-b backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <Link to="/" className="text-base font-bold">
             エンジニア給与計算

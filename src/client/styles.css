@@ -469,7 +469,8 @@ html.scrollbar-hidden body::-webkit-scrollbar {
 .tier-hero {
   position: relative;
   overflow: hidden;
-  border-radius: var(--radius-md, 0.75rem);
+  /* HeroUI Card（給与カード）と同じ角丸に揃える。 */
+  border-radius: min(32px, var(--radius-3xl));
   padding: 1rem 1.25rem;
   color: var(--tier-on);
   background: linear-gradient(135deg, var(--tier-from), var(--tier-to));

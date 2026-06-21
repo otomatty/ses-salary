@@ -13,7 +13,7 @@ export function TierBadge({
 }: {
   tier: Tier;
   size?: "sm" | "md" | "lg";
-  /** 単価レンジ（例: "単価 900千円〜"）を併記する */
+  /** 単価レンジ（例: "単価 90万円〜"）を併記する */
   showRange?: boolean;
   className?: string;
 }) {

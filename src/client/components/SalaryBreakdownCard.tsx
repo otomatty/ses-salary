@@ -71,15 +71,14 @@ export function SalaryBreakdownCard({
               {formatYen(b.avgUnitPrice)} 円
             </span>
           </Row>
-          <Row label="判定された帯">{b.band.label}</Row>
-          <Row label="評価ランク">
+          <Row label="ランク">
             {b.status === "fixed" ||
             b.status === "debut" ||
             b.band.kind === "single"
-              ? "—（不問）"
+              ? b.band.label
               : result.rankProvisional
-                ? `ランク ${b.rank}（暫定）`
-                : `ランク ${b.rank}`}
+                ? `${b.band.label}-${b.rank}（暫定）`
+                : `${b.band.label}-${b.rank}`}
           </Row>
           <Row label="還元率">
             {b.rate === null ? "—" : formatRate(b.rate)}
