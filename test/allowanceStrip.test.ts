@@ -2,10 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   applyAllowanceTemplate,
   allowancesEqual,
+  availableAllowanceCandidates,
   buildAllowanceDraftFromDashboard,
   emptyMasterRows,
+  makeAllowanceRow,
   masterRowsFromDtos,
   masterRowsToItems,
+  validateMasterRows,
   type AllowanceDraft,
 } from "../src/client/lib/allowanceStrip";
 import { monthHasPayableSalary } from "../src/shared/quarterSalary";
@@ -35,24 +38,80 @@ describe("monthHasPayableSalary", () => {
   });
 });
 
+describe("emptyMasterRows", () => {
+  it("初期状態は手当0件", () => {
+    expect(emptyMasterRows()).toEqual([]);
+  });
+});
+
+describe("makeAllowanceRow", () => {
+  it("マスタ手当は既定額・残業基礎を引き継ぐ", () => {
+    expect(makeAllowanceRow("TL手当")).toEqual({
+      name: "TL手当",
+      enabled: true,
+      amountManYen: 2,
+      includeInOvertimeBase: true,
+    });
+  });
+
+  it("任意名称は金額未入力・残業基礎OFFが初期値", () => {
+    expect(makeAllowanceRow("出張手当")).toEqual({
+      name: "出張手当",
+      enabled: true,
+      amountManYen: null,
+      includeInOvertimeBase: false,
+    });
+  });
+});
+
+describe("availableAllowanceCandidates", () => {
+  it("追加済みのマスタ手当は候補から除外する", () => {
+    const names = availableAllowanceCandidates([makeAllowanceRow("TL手当")]).map(
+      (d) => d.name,
+    );
+    expect(names).not.toContain("TL手当");
+    expect(names).toContain("役職手当");
+  });
+});
+
+describe("validateMasterRows", () => {
+  it("手当名の重複を弾く", () => {
+    const rows = [
+      { name: "出張手当", enabled: true, amountManYen: 1, includeInOvertimeBase: false },
+      { name: "出張手当", enabled: true, amountManYen: 2, includeInOvertimeBase: false },
+    ];
+    expect(validateMasterRows(rows)).toMatch(/重複/);
+  });
+
+  it("正しい行は null", () => {
+    expect(validateMasterRows([makeAllowanceRow("TL手当")])).toBeNull();
+  });
+});
+
 describe("masterRowsToItems", () => {
   it("マスタから includeInOvertimeBase を設定する", () => {
-    const rows = emptyMasterRows().map((r) =>
-      r.name === "職務手当"
-        ? { ...r, enabled: true, amountManYen: 2 }
-        : r.name === "通勤手当"
-          ? { ...r, enabled: true, amountManYen: 0.833 }
-          : r,
-    );
+    const rows = [
+      { ...makeAllowanceRow("TL手当"), amountManYen: 2 },
+      { ...makeAllowanceRow("通勤手当"), amountManYen: 0.833 },
+    ];
     const items = masterRowsToItems(rows);
     expect(items).toEqual([
-      { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+      { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
       { name: "通勤手当", amount: 8330, includeInOvertimeBase: false },
     ]);
   });
 
-  it("未選択・未入力の行は除外する", () => {
-    expect(masterRowsToItems(emptyMasterRows())).toEqual([]);
+  it("任意手当はトグルした残業基礎フラグを保存する", () => {
+    const rows = [
+      { ...makeAllowanceRow("出張手当"), amountManYen: 1, includeInOvertimeBase: true },
+    ];
+    expect(masterRowsToItems(rows)).toEqual([
+      { name: "出張手当", amount: 10_000, includeInOvertimeBase: true },
+    ]);
+  });
+
+  it("未入力の行は除外する", () => {
+    expect(masterRowsToItems([makeAllowanceRow("役職手当")])).toEqual([]);
   });
 });
 
@@ -90,13 +149,13 @@ describe("buildAllowanceDraftFromDashboard", () => {
       {
         id: "1",
         yearMonth: "2026-01",
-        name: "職務手当",
+        name: "TL手当",
         amount: 20_000,
         includeInOvertimeBase: false,
       },
     ]);
     expect(draft.get("2026-01")).toEqual([
-      { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+      { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
     ]);
   });
 });
@@ -108,16 +167,16 @@ describe("applyAllowanceTemplate", () => {
     const next = applyAllowanceTemplate(
       draft,
       ["2026-02", "2026-03"],
-      [{ name: "職務手当", amount: 20_000, includeInOvertimeBase: true }],
+      [{ name: "TL手当", amount: 20_000, includeInOvertimeBase: true }],
     );
     expect(next.get("2026-01")).toEqual([
       { name: "旧", amount: 1000, includeInOvertimeBase: false },
     ]);
     expect(next.get("2026-02")).toEqual([
-      { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+      { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
     ]);
     expect(next.get("2026-03")).toEqual([
-      { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+      { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
     ]);
   });
 

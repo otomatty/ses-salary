@@ -33,7 +33,7 @@ describe("resolveMonthUpsert", () => {
     const r = resolveMonthUpsert(
       {
         allowances: [
-          { name: "職務手当", amount: 20_000, includeInOvertimeBase: false },
+          { name: "TL手当", amount: 20_000, includeInOvertimeBase: false },
         ],
       },
       existing,
@@ -42,7 +42,7 @@ describe("resolveMonthUpsert", () => {
     if ("error" in r) return;
     expect(r.replaceAllowances).toBe(true);
     expect(r.allowances[0]).toEqual({
-      name: "職務手当",
+      name: "TL手当",
       amount: 20_000,
       includeInOvertimeBase: true,
     });
