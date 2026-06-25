@@ -6,13 +6,13 @@
  * このモジュールでその加算分を計算する。
  *
  * 残業代は会社規程（株式会社アーシャルデザイン）に基づく:
- *   残業単価 = (基本給 + 職務手当) ÷ 月平均所定労働時間 × 割増率
+ *   残業単価 = (基本給 + TL手当) ÷ 月平均所定労働時間 × 割増率
  * かつ、みなし残業（固定時間外手当）として基本給に含まれる時間分は二重計上せず、
  * **みなし時間を超えた分のみ** を別途支給する。
  *
  * 【重要】ここでの `baseSalary` は calc.ts（単価 × 還元率）が返す額で、これは給与辞令・
  * 給与明細で言う「基本給 + 固定残業代（みなし時間分）」を内包する。つまり
- *   baseSalary = 純基本給 + (純基本給 + 職務手当) ÷ 所定 × 1.25 × みなし時間
+ *   baseSalary = 純基本給 + (純基本給 + TL手当) ÷ 所定 × 1.25 × みなし時間
  * の関係にある。したがって時給基礎を求めるには所定で割るのではなく、
  * **(所定 + 1.25 × みなし時間)** で割る必要がある（これで固定残業代の二重計上を避けつつ
  * 純基本給ベースの時給に一致する）。実際の給与明細でこの式の一致を確認済み。
@@ -117,7 +117,7 @@ export interface MonthlyAllowanceItem {
   name: string;
   /** 円 */
   amount: number;
-  /** 残業単価の基礎（基本給 + 職務手当）に算入するか。 */
+  /** 残業単価の基礎（基本給 + TL手当）に算入するか。 */
   includeInOvertimeBase: boolean;
 }
 
@@ -125,7 +125,7 @@ export interface AllowanceSummary {
   items: MonthlyAllowanceItem[];
   /** 当月の手当合計（円） */
   total: number;
-  /** 残業基礎に算入する手当の合計（職務手当など, 円） */
+  /** 残業基礎に算入する手当の合計（TL手当など, 円） */
   overtimeBaseTotal: number;
 }
 
@@ -184,7 +184,7 @@ export interface OvertimeBreakdown {
 
 export interface OvertimePayParams {
   baseSalary: number;
-  /** 残業基礎に算入する手当の合計（職務手当など） */
+  /** 残業基礎に算入する手当の合計（TL手当など） */
   overtimeBaseAllowance: number;
   monthlyStandardHours: number;
   deemedHours: number;

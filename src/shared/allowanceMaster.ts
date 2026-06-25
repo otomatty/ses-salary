@@ -3,18 +3,18 @@ import type { MonthlyAllowanceItem } from "./income";
 /** システム固定の手当マスタ1件。 */
 export interface AllowanceDefinition {
   name: string;
-  /** 残業単価の基礎（基本給＋職務手当等）に算入するか。 */
+  /** 残業単価の基礎（基本給＋TL手当等）に算入するか。 */
   includeInOvertimeBase: boolean;
   /** 既定の支給額（円）。null ならユーザー入力。 */
   defaultAmount: number | null;
 }
 
 /**
- * 全ユーザー共通の手当マスタ。
+ * 全ユーザー共通の手当マスタ（手当を追加する際の候補）。
  * 労基法の割増賃金「除外賃金」を踏まえ、通勤・住宅・家族手当は残業基礎に含めない。
  */
 export const ALLOWANCE_MASTER: readonly AllowanceDefinition[] = [
-  { name: "職務手当", includeInOvertimeBase: true, defaultAmount: 20_000 },
+  { name: "TL手当", includeInOvertimeBase: true, defaultAmount: 20_000 },
   { name: "役職手当", includeInOvertimeBase: true, defaultAmount: null },
   { name: "資格手当", includeInOvertimeBase: true, defaultAmount: null },
   { name: "通勤手当", includeInOvertimeBase: false, defaultAmount: null },

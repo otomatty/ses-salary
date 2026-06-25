@@ -107,7 +107,7 @@ export function Prices({
     return [...set].sort((a, b) => (a < b ? 1 : -1));
   }, [monthMap, draftMonths]);
 
-  // 直近月の手当を引き継ぐ（職務手当などが毎月続くため再入力を省く）。
+  // 直近月の手当を引き継ぐ（TL手当などが毎月続くため再入力を省く）。
   const latestAllowances = useMemo<AllowanceDTO[]>(() => {
     const latest = [...monthMap.keys()].sort((a, b) => (a < b ? 1 : -1))[0];
     return latest ? (monthMap.get(latest)?.allowances ?? []) : [];

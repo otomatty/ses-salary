@@ -39,19 +39,19 @@ describe("findEmploymentType / deemedHoursOf", () => {
 describe("sumAllowances", () => {
   const items: MonthlyAllowanceItem[] = [
     { name: "役職手当", amount: 30_000, includeInOvertimeBase: true },
-    { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+    { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
   ];
 
   it("手当を合計し、残業基礎分を分離する", () => {
     const s = sumAllowances(items);
     expect(s.total).toBe(50_000);
     expect(s.overtimeBaseTotal).toBe(50_000);
-    expect(s.items.map((i) => i.name)).toEqual(["役職手当", "職務手当"]);
+    expect(s.items.map((i) => i.name)).toEqual(["TL手当", "役職手当"]);
   });
 
   it("通勤手当は残業基礎に含まれない", () => {
     const s = sumAllowances([
-      { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+      { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
       { name: "通勤手当", amount: 8_330, includeInOvertimeBase: false },
     ]);
     expect(s.total).toBe(28_330);
@@ -131,7 +131,7 @@ describe("calcOvertimePay（時給基礎は所定+1.25×みなしで割る）", 
     expect(r.pay).toBe(5_000 + 13_500); // 2,000×0.25×10 + 2,000×1.35×5
   });
 
-  it("残業基礎手当（職務手当）を時給基礎に算入する", () => {
+  it("残業基礎手当（TL手当）を時給基礎に算入する", () => {
     // 分母185、(370,000+20,000)/185 ≈ 2,108.1
     const r = calcOvertimePay({
       baseSalary: 370_000,
@@ -149,7 +149,7 @@ describe("calcOvertimePay（時給基礎は所定+1.25×みなしで割る）", 
 describe("給与明細（実データ）との一致を検証する", () => {
   // 2026-04 分（給与辞令②: G-2 / 基準単価850,000 / 還元率54.6%）。
   // salary(=単価×率)=464,126 は「基本給398,703 + 固定残業代65,423」を内包する。
-  // 職務手当20,000（残業基礎に算入）。所定160h・みなし20h。実残業20.95h（20h超は0.95h）。
+  // TL手当20,000（残業基礎に算入）。所定160h・みなし20h。実残業20.95h（20h超は0.95h）。
   const settings: UserSettings = {
     employmentType: "fulltime_engineer",
     monthlyStandardHours: 160,
@@ -157,7 +157,7 @@ describe("給与明細（実データ）との一致を検証する", () => {
     consultRate: null,
   };
   const allowances: MonthlyAllowanceItem[] = [
-    { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+    { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
   ];
 
   it("超過残業代3,108円・総支給487,234円が再現される", () => {

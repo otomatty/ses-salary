@@ -207,8 +207,8 @@ export function Onboarding({
           <Card.Header>
             <Card.Title className="text-sm">③ 特別手当を設定</Card.Title>
             <Card.Description className="text-xs">
-              付与する手当を一覧から選び、金額を入力します。月をクリック／ドラッグで複数選択し「選択月に適用」で反映できます。
-              残業基礎への算入は手当ごとにシステムで決まっています（職務手当などは残業代の計算に含まれます）。
+              必要な手当を追加して金額を入力します。任意の名称の手当も追加できます。月をクリック／ドラッグで複数選択し「選択月に適用」で反映できます。
+              定番手当（TL手当など）の残業基礎への算入はシステムで決まり、任意手当は追加時に算入有無を選べます。
             </Card.Description>
           </Card.Header>
           <Card.Content>

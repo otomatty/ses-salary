@@ -34,7 +34,7 @@ describe("POST /api/months（単価・残業・手当をまとめて保存）", 
         unitPrice: 850_000,
         overtime: { normalHours: 30, nightHours: 1, holidayHours: 0 },
         allowances: [
-          { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+          { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
           { name: "通勤手当", amount: 8_330, includeInOvertimeBase: false },
         ],
       },
@@ -51,7 +51,7 @@ describe("POST /api/months（単価・残業・手当をまとめて保存）", 
     expect(ot?.nightHours).toBe(1);
     expect(body.allowances.filter((a) => a.yearMonth === baseYm)).toHaveLength(2);
     const job = body.allowances.find(
-      (a) => a.yearMonth === baseYm && a.name === "職務手当",
+      (a) => a.yearMonth === baseYm && a.name === "TL手当",
     );
     const commute = body.allowances.find(
       (a) => a.yearMonth === baseYm && a.name === "通勤手当",
@@ -67,14 +67,14 @@ describe("POST /api/months（単価・残業・手当をまとめて保存）", 
         unitPrice: 850_000,
         overtime: { normalHours: 0, nightHours: 0, holidayHours: 0 },
         allowances: [
-          { name: "職務手当", amount: 20_000, includeInOvertimeBase: false },
+          { name: "TL手当", amount: 20_000, includeInOvertimeBase: false },
         ],
       },
       cookie,
     );
     const body = await dashboard(cookie);
     const job = body.allowances.find(
-      (a) => a.yearMonth === baseYm && a.name === "職務手当",
+      (a) => a.yearMonth === baseYm && a.name === "TL手当",
     );
     expect(job?.includeInOvertimeBase).toBe(true);
   });
@@ -86,7 +86,7 @@ describe("POST /api/months（単価・残業・手当をまとめて保存）", 
         unitPrice: 850_000,
         overtime: { normalHours: 30, nightHours: 0, holidayHours: 0 },
         allowances: [
-          { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+          { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
           { name: "通勤手当", amount: 8_330, includeInOvertimeBase: false },
         ],
       },
@@ -98,7 +98,7 @@ describe("POST /api/months（単価・残業・手当をまとめて保存）", 
         unitPrice: 860_000,
         overtime: { normalHours: 10, nightHours: 0, holidayHours: 0 },
         allowances: [
-          { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+          { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
         ],
       },
       cookie,
@@ -120,7 +120,7 @@ describe("POST /api/months（単価・残業・手当をまとめて保存）", 
         unitPrice: 850_000,
         overtime: { normalHours: 5, nightHours: 0, holidayHours: 0 },
         allowances: [
-          { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+          { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
         ],
       },
       cookie,
@@ -204,7 +204,7 @@ describe("POST /api/months（単価・残業・手当をまとめて保存）", 
         unitPrice: 850_000,
         overtime: { normalHours: 5, nightHours: 0, holidayHours: 0 },
         allowances: [
-          { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+          { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
         ],
       },
       cookie,
@@ -282,14 +282,14 @@ describe("/api/dashboard currentMonthIncome", () => {
       { employmentType: "fulltime_engineer", monthlyStandardHours: 150, deemedOvertimeHours: null },
       cookie,
     );
-    // 当月（baseYm）に職務手当2万（残業基礎）＋ 残業30h を登録
+    // 当月（baseYm）にTL手当2万（残業基礎）＋ 残業30h を登録
     await postJson(
       `/api/months/${baseYm}`,
       {
         unitPrice: 800_000,
         overtime: { normalHours: 30, nightHours: 0, holidayHours: 0 },
         allowances: [
-          { name: "職務手当", amount: 20_000, includeInOvertimeBase: true },
+          { name: "TL手当", amount: 20_000, includeInOvertimeBase: true },
         ],
       },
       cookie,

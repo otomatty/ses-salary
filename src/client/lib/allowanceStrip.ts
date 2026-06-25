@@ -1,5 +1,6 @@
 import {
   ALLOWANCE_MASTER,
+  type AllowanceDefinition,
   findAllowanceDefinition,
   normalizeAllowanceItem,
 } from "@shared/allowanceMaster";
@@ -20,52 +21,51 @@ export interface AllowanceMasterRowDraft {
   includeInOvertimeBase?: boolean;
 }
 
-export function defaultAmountManYenForMaster(name: string): number | null {
-  const def = findAllowanceDefinition(name);
-  if (def?.defaultAmount == null) return null;
-  return yenToManYen(def.defaultAmount);
-}
-
-/** マスタ全件の未選択状態を生成する。 */
+/** 手当未追加の初期状態（空リスト）。 */
 export function emptyMasterRows(): AllowanceMasterRowDraft[] {
-  return ALLOWANCE_MASTER.map((def) => ({
-    name: def.name,
-    enabled: false,
-    amountManYen: def.defaultAmount != null ? yenToManYen(def.defaultAmount) : null,
-  }));
+  return [];
 }
 
-/** 保存済み手当からマスタ選択状態を復元する。 */
+/** まだ追加されていないマスタ手当（追加時の候補）を返す。 */
+export function availableAllowanceCandidates(
+  rows: AllowanceMasterRowDraft[],
+): AllowanceDefinition[] {
+  const used = new Set(rows.map((r) => r.name));
+  return ALLOWANCE_MASTER.filter((def) => !used.has(def.name));
+}
+
+/**
+ * 手当名から行を1件生成する。
+ * マスタ登録名なら既定額・残業基礎をマスタから引き継ぎ、
+ * 任意名称なら金額未入力・残業基礎OFFを初期値とする。
+ */
+export function makeAllowanceRow(name: string): AllowanceMasterRowDraft {
+  const trimmed = name.trim();
+  const def = findAllowanceDefinition(trimmed);
+  return {
+    name: trimmed,
+    enabled: true,
+    amountManYen:
+      def?.defaultAmount != null ? yenToManYen(def.defaultAmount) : null,
+    includeInOvertimeBase: def ? def.includeInOvertimeBase : false,
+  };
+}
+
+/** 保存済み手当から追加済みの行リストを復元する（保存されている手当のみ）。 */
 export function masterRowsFromItems(
   items: MonthlyAllowanceItem[],
 ): AllowanceMasterRowDraft[] {
-  const byName = new Map(items.map((i) => [i.name, i]));
-  const rows: AllowanceMasterRowDraft[] = ALLOWANCE_MASTER.map((def) => {
-    const item = byName.get(def.name);
-    if (item) {
-      return {
-        name: def.name,
-        enabled: true,
-        amountManYen: yenToManYen(item.amount),
-      };
-    }
+  return items.map((item) => {
+    const def = findAllowanceDefinition(item.name);
     return {
-      name: def.name,
-      enabled: false,
-      amountManYen:
-        def.defaultAmount != null ? yenToManYen(def.defaultAmount) : null,
-    };
-  });
-  for (const item of items) {
-    if (findAllowanceDefinition(item.name)) continue;
-    rows.push({
       name: item.name,
       enabled: true,
       amountManYen: yenToManYen(item.amount),
-      includeInOvertimeBase: item.includeInOvertimeBase,
-    });
-  }
-  return rows;
+      includeInOvertimeBase: def
+        ? def.includeInOvertimeBase
+        : item.includeInOvertimeBase,
+    };
+  });
 }
 
 export function masterRowsFromDtos(
@@ -117,17 +117,23 @@ export function masterRowsToItems(
 }
 
 export function validateMasterRows(rows: AllowanceMasterRowDraft[]): string | null {
+  const seen = new Set<string>();
   for (const r of rows) {
     if (!r.enabled) continue;
+    const name = r.name.trim();
+    if (!name) {
+      return "手当名を入力してください。";
+    }
+    if (seen.has(name)) {
+      return `手当名が重複しています（${name}）。`;
+    }
+    seen.add(name);
     if (
       r.amountManYen == null ||
       !Number.isFinite(r.amountManYen) ||
       r.amountManYen < 0
     ) {
-      return `${r.name}の金額を正しく入力してください（万円）。`;
-    }
-    if (!findAllowanceDefinition(r.name)) {
-      continue;
+      return `${name}の金額を正しく入力してください（万円）。`;
     }
   }
   return null;

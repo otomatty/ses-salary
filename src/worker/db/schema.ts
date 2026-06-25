@@ -110,7 +110,7 @@ export const monthlyAllowances = sqliteTable(
     yearMonth: text("year_month").notNull(), // "YYYY-MM"
     name: text("name").notNull(),
     amount: integer("amount").notNull(), // 円
-    // 残業単価の基礎（基本給 + 職務手当）に算入するか（0|1）。
+    // 残業単価の基礎（基本給 + TL手当）に算入するか（0|1）。
     includeInOvertimeBase: integer("include_in_overtime_base").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },

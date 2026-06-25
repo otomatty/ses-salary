@@ -157,7 +157,7 @@ export function AllowanceYearEditor({
 
       <div className="bg-surface-secondary space-y-3 rounded-lg p-3">
         <div className="text-muted text-xs">
-          支給額が算出できる月をクリック／ドラッグで複数選択し、付与する手当にチェックを入れて金額を入力、「選択月に適用」で反映します。
+          支給額が算出できる月をクリック／ドラッグで複数選択し、必要な手当を追加して金額を入力、「選択月に適用」で反映します。
         </div>
         <div className="text-muted text-xs">
           対象:{" "}
