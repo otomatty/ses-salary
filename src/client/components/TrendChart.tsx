@@ -14,13 +14,6 @@ import { compareYM } from "@shared/periods";
 import { formatYen } from "@shared/calc";
 import { CONSULT_CHART_SERIES } from "@shared/guidance";
 
-interface ChartPoint {
-  month: string;
-  unitPrice?: number;
-  /** 要相談（自動計算対象外）の期に、その月の単価（無ければ平均単価）を置くマーカー値。 */
-  consultMark?: number;
-}
-
 /**
  * 単価・給与の推移グラフ（PRD §6.5）。ホーム画面の主役。
  * - 月単価: 入力された各月の単価
@@ -36,41 +29,40 @@ export function TrendChart({
   prices: MonthlyPriceDTO[];
   history: SalaryResult[];
 }) {
-  // 月 -> { unitPrice, consultMark } のマップを作り、全月をカテゴリ軸として結合する。
-  // 給与額そのものは別途 salaryData（四半期点のみの専用データ）で描くため、ここでは
-  // 月単価と要相談マーカー、そして「各 appliedFrom 月を必ず軸カテゴリに含める」ことだけ扱う。
-  const map = new Map<string, ChartPoint>();
-
-  for (const p of prices) {
-    map.set(p.yearMonth, { month: p.yearMonth, unitPrice: p.unitPrice });
-  }
-  for (const r of history) {
-    const month = r.appliedFrom;
-    const entry = map.get(month) ?? { month };
-    if (r.breakdown.salary === null && r.breakdown.status === "consult") {
-      // 要相談の期は給与額が無いため、単価（無ければ平均単価）の高さに
-      // マーカーを置いて「この期は要相談」と分かるようにする。
-      entry.consultMark = entry.unitPrice ?? r.breakdown.avgUnitPrice;
-    }
-    // appliedFrom 月（単価が無い来期など）も軸カテゴリに含めるため必ず登録する。
-    map.set(month, entry);
-  }
-
-  const data = Array.from(map.values()).sort((a, b) =>
-    a.month < b.month ? -1 : 1,
-  );
-  const hasConsult = data.some((d) => d.consultMark !== undefined);
+  // 各ラインは「自前の data を持つ系列」として対称に描く。
+  // 以前はメインデータ（全月）に月単価を載せ、給与だけ専用 data で描いていたが、
+  // recharts は「チャート data を使う系列」と「自前 data を持つ系列」を
+  // allowDuplicatedCategory={false} の下で混在させると、両者で別々のカテゴリ
+  // スケールを組んでしまい、月単価ライン（全月）が誤ったスケールに乗って直近月
+  // （例: 5・6月）まで描かれない。全系列を自前 data に統一してスケールを揃える。
+  const unitPriceData = [...prices]
+    .sort((a, b) => compareYM(a.yearMonth, b.yearMonth))
+    .map((p) => ({ month: p.yearMonth, unitPrice: p.unitPrice }));
 
   // 給与ラインは「四半期点（appliedFrom）だけ」を持つ専用データで描く。
-  // 月単価は毎月あるが給与は四半期ごとなので、メインデータ（全月）に混ぜると
-  // 四半期と四半期の間（給与が無い月）が欠損になり、connectNulls={false} では
-  // 線がまったく繋がらない（点が孤立する）。専用データにすれば隣接する四半期点
-  // どうしが配列上の隣り合う要素になり、connectNulls={false} のままでも線が繋がる。
-  // 要相談（salary === null）の期はそのまま break として残るので、その四半期だけ
-  // 線が切れ、別系列のオレンジマーカーで「要相談」を明示できる（PRD §12.4）。
+  // 月単価は毎月あるが給与は四半期ごとなので、全月データに混ぜると四半期と四半期の
+  // 間（給与が無い月）が欠損になり、connectNulls={false} では線がまったく繋がらない
+  // （点が孤立する）。専用データにすれば隣接する四半期点どうしが配列上の隣り合う要素に
+  // なり、connectNulls={false} のままでも線が繋がる。要相談（salary === null）の期は
+  // そのまま break として残るので、その四半期だけ線が切れ、別系列のオレンジマーカーで
+  // 「要相談」を明示できる（PRD §12.4）。
   const salaryData = [...history]
     .sort((a, b) => compareYM(a.appliedFrom, b.appliedFrom))
     .map((r) => ({ month: r.appliedFrom, salary: r.breakdown.salary }));
+
+  // 要相談（自動計算対象外）の期に、その月の単価（無ければ平均単価）の高さで
+  // マーカーを置く専用データ。これも自前 data の系列として描く。
+  const priceByMonth = new Map(prices.map((p) => [p.yearMonth, p.unitPrice]));
+  const consultData = history
+    .filter(
+      (r) => r.breakdown.salary === null && r.breakdown.status === "consult",
+    )
+    .sort((a, b) => compareYM(a.appliedFrom, b.appliedFrom))
+    .map((r) => ({
+      month: r.appliedFrom,
+      consultMark: priceByMonth.get(r.appliedFrom) ?? r.breakdown.avgUnitPrice,
+    }));
+  const hasConsult = consultData.length > 0;
 
   // Y軸ドメインを単価・給与の両系列の最大値から明示的に算出する。
   // 給与ラインは独自 data（salaryData）を持つため、recharts の自動ドメインだと
@@ -84,7 +76,7 @@ export function TrendChart({
   );
   const yDomainMax = yMax > 0 ? Math.ceil(yMax / 100000) * 100000 : undefined;
 
-  if (data.length === 0) {
+  if (unitPriceData.length === 0 && salaryData.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center text-sm text-slate-400">
         データがありません。月単価を入力するとグラフが表示されます。
@@ -95,7 +87,7 @@ export function TrendChart({
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+        <LineChart margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis
             dataKey="month"
@@ -127,6 +119,9 @@ export function TrendChart({
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Line
+            // 全月の月単価。給与・要相談ラインと同じく自前 data を持つ系列にして
+            // カテゴリ軸のスケールを揃える（混在させると直近月が描かれない）。
+            data={unitPriceData}
             type="monotone"
             dataKey="unitPrice"
             name="月単価"
@@ -150,6 +145,7 @@ export function TrendChart({
           {/* 要相談（自動計算対象外）の期を明示するマーカー。線は引かず点のみ。 */}
           {hasConsult && (
             <Line
+              data={consultData}
               type="monotone"
               dataKey="consultMark"
               name={CONSULT_CHART_SERIES}
