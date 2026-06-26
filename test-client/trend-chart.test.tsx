@@ -1,8 +1,28 @@
 import { render } from "@testing-library/react";
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { TrendChart } from "../src/client/components/TrendChart";
 import { buildSalaryHistory } from "../src/shared/periods";
 import type { MonthlyPriceDTO } from "../src/shared/types";
+
+// グローバル（ResizeObserver / HTMLElement.prototype）への差し替えは同じ jsdom
+// worker 内の別テストへ漏れるため、元の値を退避して afterAll で必ず復元する。
+const originalResizeObserver = (
+  globalThis as unknown as { ResizeObserver?: unknown }
+).ResizeObserver;
+const originalDescriptors: Record<string, PropertyDescriptor | undefined> = {
+  offsetWidth: Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    "offsetWidth",
+  ),
+  offsetHeight: Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    "offsetHeight",
+  ),
+  getBoundingClientRect: Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    "getBoundingClientRect",
+  ),
+};
 
 beforeAll(() => {
   // recharts の ResponsiveContainer は ResizeObserver と要素サイズを使う。
@@ -34,6 +54,23 @@ beforeAll(() => {
       toJSON() {},
     }),
   });
+});
+
+afterAll(() => {
+  if (originalResizeObserver === undefined) {
+    delete (globalThis as unknown as { ResizeObserver?: unknown })
+      .ResizeObserver;
+  } else {
+    (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver =
+      originalResizeObserver;
+  }
+  for (const [key, descriptor] of Object.entries(originalDescriptors)) {
+    if (descriptor) {
+      Object.defineProperty(HTMLElement.prototype, key, descriptor);
+    } else {
+      delete (HTMLElement.prototype as Record<string, unknown>)[key];
+    }
+  }
 });
 
 /** recharts のラインの `d` から各頂点の x 座標を抽出する。 */
