@@ -2,6 +2,14 @@
 
 SES エンジニア向け 単価連動型 給与計算アプリ。Cloudflare Workers (Hono) + React 19/Vite + D1 (Drizzle ORM)。詳細な仕様・コマンドは `README.md` を参照。
 
+## パッケージマネージャ
+
+このプロジェクトのパッケージマネージャは **Bun** を使用する（`packageManager: bun@1.3.x`）。`npm` / `yarn` / `pnpm` は使用しない。
+
+- 依存関係のインストールは `bun install`（`npm install` は使わない）。
+- スクリプト実行は `bun run <script>`（例: `bun run dev` / `bun run build` / `bun run typecheck` / `bun run test`）。
+- ロックファイルは `bun.lock` のみをコミットする。`package-lock.json` / `yarn.lock` / `pnpm-lock.yaml` は生成・コミットしない（`.gitignore` 済み）。
+
 ## Cursor Cloud specific instructions
 
 - Package manager is **Bun** (`packageManager: bun@1.3.x`). Standard scripts live in `package.json` (`dev`, `build`, `typecheck`, `test`, `db:migrate:local`). Use those instead of duplicating commands.

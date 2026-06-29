@@ -236,13 +236,13 @@ export function tierForBand(band: RateBand): Tier {
 }
 
 /**
- * 月単価の配列から最新月（年月の降順で先頭）の単価を返す。
- * エントリが無ければ null。個人の現在ティア判定に使う。
+ * 月単価の配列から指定月（"YYYY-MM"）の単価を返す。
+ * その月の単価が未登録なら null。今月の単価でのティア判定に使う。
  */
-export function latestUnitPrice(
+export function unitPriceForMonth(
   prices: { yearMonth: string; unitPrice: number }[],
+  yearMonth: string,
 ): number | null {
-  if (prices.length === 0) return null;
-  // "YYYY-MM" は辞書順 = 時系列順。
-  return prices.reduce((a, b) => (b.yearMonth > a.yearMonth ? b : a)).unitPrice;
+  const match = prices.find((p) => p.yearMonth === yearMonth);
+  return match ? match.unitPrice : null;
 }

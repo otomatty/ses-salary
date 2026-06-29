@@ -1,5 +1,9 @@
 node_modules
 dist
+# パッケージマネージャは Bun を使用する。npm/yarn/pnpm のロックファイルはコミットしない。
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 .wrangler
 .dev.vars
 *.log
