@@ -1,6 +1,7 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import type { ApiUser } from "@shared/types";
-import { findTier, latestUnitPrice } from "@shared/rateTable";
+import { findTier, unitPriceForMonth } from "@shared/rateTable";
+import { currentYearMonth } from "@shared/periods";
 import { api } from "../api";
 import { useAppContext } from "../context/AppContext";
 import { BottomNav } from "../components/BottomNav";
@@ -18,9 +19,11 @@ export function Layout({
   onLogout: () => void;
 }) {
   const { dashboard } = useAppContext();
-  // 直近月の単価から本人の現在ティアを判定する（単価未登録なら null）。
-  const latest = dashboard ? latestUnitPrice(dashboard.prices) : null;
-  const tier = latest === null ? null : findTier(latest);
+  // 今月の単価から本人の現在ティアを判定する（今月の単価が未登録なら null）。
+  const currentPrice = dashboard
+    ? unitPriceForMonth(dashboard.prices, currentYearMonth())
+    : null;
+  const tier = currentPrice === null ? null : findTier(currentPrice);
 
   const handleLogout = async () => {
     try {
