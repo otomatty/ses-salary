@@ -9,10 +9,11 @@ import { guidanceForStatus } from "@shared/guidance";
 import type { SalaryResult } from "@shared/periods";
 import {
   findTier,
-  latestUnitPrice,
+  unitPriceForMonth,
   TIERS,
   type Tier,
 } from "@shared/rateTable";
+import { currentYearMonth } from "@shared/periods";
 import { LazyTrendChart } from "../components/LazyTrendChart";
 import { StatusBadge } from "../components/StatusBadge";
 import { StatusGuidance } from "../components/StatusGuidance";
@@ -28,15 +29,18 @@ export function Home({
 }) {
   const navigate = useNavigate();
 
-  // 直近月の単価から本人の現在ティアを判定する（単価未登録なら null）。
-  const latestPrice = latestUnitPrice(dashboard.prices);
-  const tier = latestPrice === null ? null : findTier(latestPrice);
+  // 今月の単価から本人の現在ティアを判定する（今月の単価が未登録なら null）。
+  const currentPrice = unitPriceForMonth(
+    dashboard.prices,
+    currentYearMonth(),
+  );
+  const tier = currentPrice === null ? null : findTier(currentPrice);
 
   return (
     <div className="space-y-6">
-      {/* 現在のティア（Tech Gold / Silver / Bronze）。直近月の単価で判定。 */}
-      {tier !== null && latestPrice !== null && (
-        <TierHero tier={tier} unitPrice={latestPrice} />
+      {/* 現在のティア（Tech Gold / Silver / Bronze）。今月の単価で判定。 */}
+      {tier !== null && currentPrice !== null && (
+        <TierHero tier={tier} unitPrice={currentPrice} />
       )}
 
       {error && (
@@ -153,7 +157,7 @@ function TierHero({ tier, unitPrice }: { tier: Tier; unitPrice: number }) {
           <p className="mt-0.5 text-xs opacity-90">{info.rangeLabel}</p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-xs opacity-90">直近月の単価</p>
+          <p className="text-xs opacity-90">今月の単価</p>
           <p className="text-xl font-bold tabular-nums">
             {formatYen(unitPrice)}
             <span className="ml-1 text-sm font-normal opacity-90">円</span>

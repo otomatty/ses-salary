@@ -3,6 +3,7 @@ import {
   findTier,
   tierForBand,
   latestUnitPrice,
+  unitPriceForMonth,
   RATE_BANDS,
   TIER_GOLD_MIN,
   TIER_SILVER_MIN,
@@ -77,5 +78,27 @@ describe("最新月の単価（latestUnitPrice）", () => {
 
   it("空配列は null", () => {
     expect(latestUnitPrice([])).toBeNull();
+  });
+});
+
+describe("今月の単価（unitPriceForMonth）", () => {
+  const prices = [
+    { yearMonth: "2026-01", unitPrice: 500_000 },
+    { yearMonth: "2026-03", unitPrice: 950_000 },
+    { yearMonth: "2026-06", unitPrice: 700_000 },
+  ];
+
+  it("指定月の単価を返す", () => {
+    expect(unitPriceForMonth(prices, "2026-06")).toBe(700_000);
+    expect(unitPriceForMonth(prices, "2026-01")).toBe(500_000);
+  });
+
+  it("最新月ではなく指定月で判定する（直近月と異なる月でも一致する）", () => {
+    expect(unitPriceForMonth(prices, "2026-03")).toBe(950_000);
+  });
+
+  it("指定月の単価が未登録なら null", () => {
+    expect(unitPriceForMonth(prices, "2026-05")).toBeNull();
+    expect(unitPriceForMonth([], "2026-06")).toBeNull();
   });
 });

@@ -246,3 +246,15 @@ export function latestUnitPrice(
   // "YYYY-MM" は辞書順 = 時系列順。
   return prices.reduce((a, b) => (b.yearMonth > a.yearMonth ? b : a)).unitPrice;
 }
+
+/**
+ * 月単価の配列から指定月（"YYYY-MM"）の単価を返す。
+ * その月の単価が未登録なら null。今月の単価でのティア判定に使う。
+ */
+export function unitPriceForMonth(
+  prices: { yearMonth: string; unitPrice: number }[],
+  yearMonth: string,
+): number | null {
+  const match = prices.find((p) => p.yearMonth === yearMonth);
+  return match ? match.unitPrice : null;
+}
