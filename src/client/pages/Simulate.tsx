@@ -66,11 +66,36 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
     () => quarterMonths(sourceQuarterStart),
     [sourceQuarterStart],
   );
-  // 実績のない月＝仮単価を入力する対象。
-  const editableMonths = useMemo(
-    () => sourceMonths.filter((ym) => !actualPriceMap.has(ym)),
-    [sourceMonths, actualPriceMap],
+  // 比較対象（実績だけで確定するこの期の給与）。直前期が実績で揃わなければ null。
+  // 途中デビュー特例（デビュー月〜期末が実績で連続）も実績のみで確定する。
+  const baseline = useMemo(
+    () =>
+      computeSalaryForQuarter(
+        salaryQuarter,
+        actualPriceMap,
+        dashboard.rankHistory,
+        dashboard.currentRank,
+        dashboard.settings.consultRate,
+      ),
+    [
+      salaryQuarter,
+      actualPriceMap,
+      dashboard.rankHistory,
+      dashboard.currentRank,
+      dashboard.settings.consultRate,
+    ],
   );
+  // 実績だけでデビュー特例が成立する期は、デビュー前の月を入力対象にしない。
+  // （入力させると通常の3ヶ月計算になり、一律額のデビュー給与が出せなくなる）
+  const isActualDebut = baseline?.breakdown.status === "debut";
+
+  // 実績のない月＝仮単価を入力する対象（デビュー特例時は入力不要）。
+  const editableMonths = useMemo(
+    () =>
+      isActualDebut ? [] : sourceMonths.filter((ym) => !actualPriceMap.has(ym)),
+    [isActualDebut, sourceMonths, actualPriceMap],
+  );
+  const editableSet = useMemo(() => new Set(editableMonths), [editableMonths]);
 
   // 評価ランク（期ごとに選択可）。既定は履歴から推定し、ユーザー選択があれば優先。
   const defaultRank = useMemo(
@@ -114,24 +139,6 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
     [allFilled, salaryQuarter, calcPriceMap, rank, dashboard.settings.consultRate],
   );
 
-  // 比較対象（実績だけで確定する場合のこの期の給与）。直前期が実績で揃わなければ null。
-  const baseline = useMemo(
-    () =>
-      computeSalaryForQuarter(
-        salaryQuarter,
-        actualPriceMap,
-        dashboard.rankHistory,
-        dashboard.currentRank,
-        dashboard.settings.consultRate,
-      ),
-    [
-      salaryQuarter,
-      actualPriceMap,
-      dashboard.rankHistory,
-      dashboard.currentRank,
-      dashboard.settings.consultRate,
-    ],
-  );
   const diff = useMemo(
     () =>
       simulation
@@ -254,6 +261,18 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
                   </div>
                 );
               }
+              if (!editableSet.has(ym)) {
+                // デビュー前の月（実績なし・入力対象外）。デビュー特例では一律額になる。
+                return (
+                  <div
+                    key={ym}
+                    className="border-border w-40 rounded-lg border border-dashed px-3 py-2 text-sm"
+                  >
+                    <p className="text-muted text-xs">{ym}</p>
+                    <p className="text-muted">対象外（デビュー前）</p>
+                  </div>
+                );
+              }
               return (
                 <ManYenField
                   key={ym}
@@ -268,7 +287,9 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
           </div>
           {editableMonths.length === 0 && (
             <p className="text-muted mt-3 text-xs">
-              この期は実績単価だけで確定しています。
+              {isActualDebut
+                ? "途中デビュー期のため、実績のみで一律額が適用されます。"
+                : "この期は実績単価だけで確定しています。"}
             </p>
           )}
         </Card.Content>
