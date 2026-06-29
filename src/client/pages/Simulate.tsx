@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Button, Card, Chip, Radio, RadioGroup } from "@heroui/react";
+import { Button, Card, Chip, ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import type { DashboardResponse } from "@shared/types";
 import { formatManYen, formatYen, manYenToYen } from "@shared/calc";
 import { CONSULT_DELTA_BLOCKED } from "@shared/guidance";
@@ -214,23 +214,26 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
           <Card.Title className="text-sm">評価ランク</Card.Title>
         </Card.Header>
         <Card.Content className="space-y-2">
-          <RadioGroup
-            value={String(rank)}
-            onChange={(v) => setRankOverride(Number(v) as Rank)}
-            orientation="horizontal"
+          <ToggleButtonGroup
+            selectionMode="single"
+            disallowEmptySelection
+            selectedKeys={[String(rank)]}
+            onSelectionChange={(keys) => {
+              const next = [...keys][0];
+              if (next != null) setRankOverride(Number(next) as Rank);
+            }}
+            fullWidth
             aria-label="評価ランク"
           >
-            <div className="flex gap-4">
-              {([1, 2, 3] as Rank[]).map((r) => (
-                <Radio key={r} value={String(r)}>
-                  ランク {r}
-                  {r === defaultRank && (
-                    <span className="text-muted ml-1 text-xs">（現在）</span>
-                  )}
-                </Radio>
-              ))}
-            </div>
-          </RadioGroup>
+            {([1, 2, 3] as Rank[]).map((r) => (
+              <ToggleButton key={r} id={String(r)}>
+                ランク {r}
+                {r === defaultRank && (
+                  <span className="text-muted ml-1 text-xs">（現在）</span>
+                )}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
           <p className="text-muted text-xs">
             A-0 / A-1 帯および固定額帯では、ランクに関わらず還元率が決まります。
           </p>
