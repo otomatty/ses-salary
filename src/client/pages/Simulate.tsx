@@ -1,116 +1,154 @@
 import { useMemo, useState } from "react";
-import {
-  Button,
-  Card,
-  Chip,
-  Radio,
-  RadioGroup,
-  Tabs,
-} from "@heroui/react";
+import { Button, Card, Chip, Radio, RadioGroup } from "@heroui/react";
 import type { DashboardResponse } from "@shared/types";
-import type { PricePoint } from "@shared/calc";
-import { formatManYen, formatYen, manYenToYen, yenToManYen } from "@shared/calc";
+import { formatManYen, formatYen, manYenToYen } from "@shared/calc";
 import { CONSULT_DELTA_BLOCKED } from "@shared/guidance";
-import { addMonths, currentYearMonth, precedingMonths } from "@shared/periods";
 import {
-  buildSimulation,
-  diffSimulation,
-  latestTwoMonths,
-} from "@shared/simulate";
+  compareYM,
+  computeSalaryForQuarter,
+  computeSalaryForQuarterWithRank,
+  currentYearMonth,
+  nextQuarterStart,
+  prevQuarterStart,
+  quarterLabel,
+  quarterMonths,
+  quarterStartMonth,
+  rankAt,
+} from "@shared/periods";
+import { diffSimulation } from "@shared/simulate";
 import type { Rank } from "@shared/rateTable";
 import { ManYenField } from "../components/ManYenField";
 import { SalaryBreakdownCard } from "../components/SalaryBreakdownCard";
 import { StatusGuidance } from "../components/StatusGuidance";
 import { useNavigate } from "@tanstack/react-router";
 
-type Mode = "recent2" | "all3";
+/** 先まで選べる給与期の上限（最初の未来期から数えた四半期数）。 */
+const MAX_FUTURE_QUARTERS = 12;
 
 /**
  * 単価シミュレーション（PRD §5.2 Should）。
- * 仮単価から給与を即時試算する。DB には一切書き込まない。
+ *
+ * 「未来の給与期（四半期）」を1つ選び、その給与を試算する。給与は直前四半期の
+ * 平均単価で決まるため、直前四半期の月単価を入力対象にする。
+ * 実績のある月は固定で反映し、未実績の月だけ仮単価を自由入力する。
+ * ここでの入力は保存されず、DB には一切書き込まれない。
  */
 export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<Mode>("recent2");
-  const [rank, setRank] = useState<Rank>(dashboard.currentRank);
 
-  // 比較対象（現在の予測）: 来期予測を優先し、無ければ今期。
-  const baselineResult = dashboard.next ?? dashboard.current;
-
-  // 「直近2ヶ月＋仮単価1ヶ月」用の実績。
-  const recentTwo = useMemo(
-    () => latestTwoMonths(dashboard.prices),
-    [dashboard.prices],
-  );
-  const hypoMonth =
-    recentTwo.length === 2
-      ? addMonths(recentTwo[1].yearMonth, 1)
-      : addMonths(currentYearMonth(), 1);
-
-  // 「3ヶ月すべて仮入力」用の対象月ラベル（最新実績、無ければ当月を起点）。
-  const anchor =
-    dashboard.prices.length > 0
-      ? [...dashboard.prices].sort((a, b) =>
-          a.yearMonth < b.yearMonth ? 1 : -1,
-        )[0].yearMonth
-      : currentYearMonth();
-  const all3Months = useMemo(
-    () => precedingMonths(addMonths(anchor, 1), 3),
-    [anchor],
-  );
-
-  // 入力状態。初期値は実績があれば流用（仮入力の出発点）。
-  const priceMap = useMemo(
+  // 実績単価マップ（円）。固定で反映する。
+  const actualPriceMap = useMemo(
     () => new Map(dashboard.prices.map((p) => [p.yearMonth, p.unitPrice])),
     [dashboard.prices],
   );
-  // 仮単価の入力状態はすべて「万円単位」で保持する（実績は円で保持）。
-  const toMan = (yen: number | undefined): number | null =>
-    yen != null ? yenToManYen(yen) : null;
-  const [hypoPrice, setHypoPrice] = useState<number | null>(null);
-  const [all3Prices, setAll3Prices] = useState<[
-    number | null,
-    number | null,
-    number | null,
-  ]>(() => [
-    toMan(priceMap.get(all3Months[0])),
-    toMan(priceMap.get(all3Months[1])),
-    toMan(priceMap.get(all3Months[2])),
-  ]);
 
-  // 入力（万円）から対象3ヶ月の単価点（円）を組み立てる（不正・未入力なら null）。
-  const months = useMemo<PricePoint[] | null>(() => {
-    const valid = (v: number | null): v is number =>
-      v != null && Number.isFinite(v) && v > 0;
-    if (mode === "recent2") {
-      if (recentTwo.length < 2) return null;
-      if (!valid(hypoPrice)) return null;
-      return [
-        ...recentTwo,
-        { yearMonth: hypoMonth, unitPrice: manYenToYen(hypoPrice) },
-      ];
+  // 選択可能な最小の給与期 = 今期の次（＝最初の未来期）。
+  const minSalaryQuarter = useMemo(
+    () => nextQuarterStart(quarterStartMonth(currentYearMonth())),
+    [],
+  );
+  // 上限（あまりに先までは選ばせない）。
+  const maxSalaryQuarter = useMemo(() => {
+    let q = minSalaryQuarter;
+    for (let i = 1; i < MAX_FUTURE_QUARTERS; i++) q = nextQuarterStart(q);
+    return q;
+  }, [minSalaryQuarter]);
+
+  // 選択中の給与期（この期の給与を試算する）。既定は最初の未来期。
+  const [salaryQuarter, setSalaryQuarter] = useState<string>(minSalaryQuarter);
+
+  // この給与期の単価元になる「直前四半期」とその3ヶ月。
+  const sourceQuarterStart = useMemo(
+    () => prevQuarterStart(salaryQuarter),
+    [salaryQuarter],
+  );
+  const sourceMonths = useMemo(
+    () => quarterMonths(sourceQuarterStart),
+    [sourceQuarterStart],
+  );
+  // 比較対象（実績だけで確定するこの期の給与）。直前期が実績で揃わなければ null。
+  // 途中デビュー特例（デビュー月〜期末が実績で連続）も実績のみで確定する。
+  const baseline = useMemo(
+    () =>
+      computeSalaryForQuarter(
+        salaryQuarter,
+        actualPriceMap,
+        dashboard.rankHistory,
+        dashboard.currentRank,
+        dashboard.settings.consultRate,
+      ),
+    [
+      salaryQuarter,
+      actualPriceMap,
+      dashboard.rankHistory,
+      dashboard.currentRank,
+      dashboard.settings.consultRate,
+    ],
+  );
+  // 実績だけでデビュー特例が成立する期は、デビュー前の月を入力対象にしない。
+  // （入力させると通常の3ヶ月計算になり、一律額のデビュー給与が出せなくなる）
+  const isActualDebut = baseline?.breakdown.status === "debut";
+
+  // 実績のない月＝仮単価を入力する対象（デビュー特例時は入力不要）。
+  const editableMonths = useMemo(
+    () =>
+      isActualDebut ? [] : sourceMonths.filter((ym) => !actualPriceMap.has(ym)),
+    [isActualDebut, sourceMonths, actualPriceMap],
+  );
+  const editableSet = useMemo(() => new Set(editableMonths), [editableMonths]);
+
+  // 評価ランク（期ごとに選択可）。既定は履歴から推定し、ユーザー選択があれば優先。
+  const defaultRank = useMemo(
+    () => rankAt(dashboard.rankHistory, salaryQuarter, dashboard.currentRank),
+    [dashboard.rankHistory, salaryQuarter, dashboard.currentRank],
+  );
+  const [rankOverride, setRankOverride] = useState<Rank | null>(null);
+  const rank = rankOverride ?? defaultRank;
+
+  // 仮単価の入力状態（月 → 万円）。月ごとに一意なので期を切り替えても保持する。
+  const [hypoInputs, setHypoInputs] = useState<Record<string, number | null>>(
+    {},
+  );
+
+  const valid = (v: number | null | undefined): v is number =>
+    v != null && Number.isFinite(v) && v > 0;
+
+  // すべての未実績月に有効な仮単価が入っているか。
+  const allFilled = editableMonths.every((ym) => valid(hypoInputs[ym]));
+
+  // 実績（固定）＋仮単価を合成した試算用の単価マップ。
+  const calcPriceMap = useMemo(() => {
+    const map = new Map(actualPriceMap);
+    for (const ym of editableMonths) {
+      const man = hypoInputs[ym];
+      if (valid(man)) map.set(ym, manYenToYen(man));
     }
-    if (!all3Prices.every(valid)) return null;
-    return all3Months.map((ym, i) => ({
-      yearMonth: ym,
-      unitPrice: manYenToYen(all3Prices[i] as number),
-    }));
-  }, [mode, recentTwo, hypoPrice, hypoMonth, all3Prices, all3Months]);
+    return map;
+  }, [actualPriceMap, editableMonths, hypoInputs]);
 
   const simulation = useMemo(
-    () => (months ? buildSimulation(months, rank) : null),
-    [months, rank],
+    () =>
+      allFilled
+        ? computeSalaryForQuarterWithRank(
+            salaryQuarter,
+            calcPriceMap,
+            rank,
+            dashboard.settings.consultRate,
+          )
+        : null,
+    [allFilled, salaryQuarter, calcPriceMap, rank, dashboard.settings.consultRate],
   );
+
   const diff = useMemo(
     () =>
       simulation
-        ? diffSimulation(
-            baselineResult?.breakdown ?? null,
-            simulation.breakdown,
-          )
+        ? diffSimulation(baseline?.breakdown ?? null, simulation.breakdown)
         : null,
-    [simulation, baselineResult],
+    [simulation, baseline],
   );
+
+  const canGoPrev = compareYM(salaryQuarter, minSalaryQuarter) > 0;
+  const canGoNext = compareYM(salaryQuarter, maxSalaryQuarter) < 0;
 
   return (
     <div className="space-y-6">
@@ -118,44 +156,59 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
         <Card.Header>
           <Card.Title className="text-sm">単価シミュレーション</Card.Title>
           <Card.Description className="text-xs">
-            仮の単価を入力して給与を試算します。ここでの入力は保存されず、DB
+            未来の給与期を選び、仮の単価で給与を試算します。ここでの入力は保存されず、DB
             には一切書き込まれません。
           </Card.Description>
         </Card.Header>
       </Card>
 
-      {/* モード選択 */}
+      {/* 給与期の選択 */}
       <Card>
         <Card.Header>
-          <Card.Title className="text-sm">入力モード</Card.Title>
+          <Card.Title className="text-sm">試算する給与期</Card.Title>
         </Card.Header>
         <Card.Content className="space-y-2">
-          <Tabs
-            selectedKey={mode}
-            onSelectionChange={(k) => setMode(k as Mode)}
-          >
-            <Tabs.ListContainer>
-              <Tabs.List aria-label="入力モード">
-                <Tabs.Tab id="recent2">
-                  直近2ヶ月＋仮単価1ヶ月
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-                <Tabs.Tab id="all3">
-                  3ヶ月すべて仮入力
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              </Tabs.List>
-            </Tabs.ListContainer>
-          </Tabs>
+          <div className="flex items-center justify-between gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              isDisabled={!canGoPrev}
+              onPress={() =>
+                setSalaryQuarter((q) => prevQuarterStart(q))
+              }
+              aria-label="前の期"
+            >
+              ← 前の期
+            </Button>
+            <div className="text-center">
+              <p className="text-base font-semibold">
+                {quarterLabel(salaryQuarter)}
+              </p>
+              <p className="text-muted text-xs">の給与</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              isDisabled={!canGoNext}
+              onPress={() =>
+                setSalaryQuarter((q) => nextQuarterStart(q))
+              }
+              aria-label="次の期"
+            >
+              次の期 →
+            </Button>
+          </div>
           <p className="text-muted text-xs">
-            {mode === "recent2"
-              ? "実績の直近2ヶ月に、仮の翌月単価を加えて試算します。"
-              : "対象3ヶ月の単価をすべて自由に入力して試算します。"}
+            この期の給与は、直前の期{" "}
+            <span className="font-medium">
+              {quarterLabel(sourceQuarterStart)}
+            </span>{" "}
+            の平均単価で決まります。
           </p>
         </Card.Content>
       </Card>
 
-      {/* 評価ランク（現在値をデフォルト、変更可） */}
+      {/* 評価ランク（期ごとに選択可） */}
       <Card>
         <Card.Header>
           <Card.Title className="text-sm">評価ランク</Card.Title>
@@ -163,7 +216,7 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
         <Card.Content className="space-y-2">
           <RadioGroup
             value={String(rank)}
-            onChange={(v) => setRank(Number(v) as Rank)}
+            onChange={(v) => setRankOverride(Number(v) as Rank)}
             orientation="horizontal"
             aria-label="評価ランク"
           >
@@ -171,7 +224,7 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
               {([1, 2, 3] as Rank[]).map((r) => (
                 <Radio key={r} value={String(r)}>
                   ランク {r}
-                  {r === dashboard.currentRank && (
+                  {r === defaultRank && (
                     <span className="text-muted ml-1 text-xs">（現在）</span>
                   )}
                 </Radio>
@@ -184,71 +237,60 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
         </Card.Content>
       </Card>
 
-      {/* 単価入力 */}
+      {/* 単価入力（直前期の3ヶ月） */}
       <Card>
         <Card.Header>
-          <Card.Title className="text-sm">仮単価の入力</Card.Title>
+          <Card.Title className="text-sm">単価の入力</Card.Title>
+          <Card.Description className="text-xs">
+            {quarterLabel(sourceQuarterStart)} の月単価
+          </Card.Description>
         </Card.Header>
         <Card.Content>
-          {mode === "recent2" ? (
-            recentTwo.length < 2 ? (
-              <div className="text-muted py-4 text-center text-sm">
-                <p>このモードには直近2ヶ月の実績単価が必要です。</p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2"
-                  onPress={() => navigate({ to: "/prices" })}
-                >
-                  月単価を入力する →
-                </Button>
-                <p className="mt-2 text-xs">
-                  「3ヶ月すべて仮入力」モードなら実績なしでも試算できます。
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {recentTwo.map((m) => (
-                    <div
-                      key={m.yearMonth}
-                      className="border-border bg-surface-secondary rounded-lg border px-3 py-2 text-sm"
-                    >
-                      <p className="text-muted text-xs">
-                        {m.yearMonth}（実績）
-                      </p>
-                      <p className="font-medium">{formatManYen(m.unitPrice)}</p>
-                    </div>
-                  ))}
-                </div>
-                <ManYenField
-                  label={`${hypoMonth}（仮単価）`}
-                  value={hypoPrice}
-                  onChange={setHypoPrice}
-                />
-              </div>
-            )
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {all3Months.map((ym, i) => (
+          <div className="flex flex-wrap items-end gap-3">
+            {sourceMonths.map((ym) => {
+              const actual = actualPriceMap.get(ym);
+              if (actual !== undefined) {
+                // 実績月は固定表示（編集不可）。
+                return (
+                  <div
+                    key={ym}
+                    className="border-border bg-surface-secondary w-40 rounded-lg border px-3 py-2 text-sm"
+                  >
+                    <p className="text-muted text-xs">{ym}（実績）</p>
+                    <p className="font-medium">{formatManYen(actual)}</p>
+                  </div>
+                );
+              }
+              if (!editableSet.has(ym)) {
+                // デビュー前の月（実績なし・入力対象外）。デビュー特例では一律額になる。
+                return (
+                  <div
+                    key={ym}
+                    className="border-border w-40 rounded-lg border border-dashed px-3 py-2 text-sm"
+                  >
+                    <p className="text-muted text-xs">{ym}</p>
+                    <p className="text-muted">対象外（デビュー前）</p>
+                  </div>
+                );
+              }
+              return (
                 <ManYenField
                   key={ym}
                   label={`${ym}（仮単価）`}
-                  value={all3Prices[i]}
+                  value={hypoInputs[ym] ?? null}
                   onChange={(v) =>
-                    setAll3Prices((prev) => {
-                      const next = [...prev] as [
-                        number | null,
-                        number | null,
-                        number | null,
-                      ];
-                      next[i] = v;
-                      return next;
-                    })
+                    setHypoInputs((prev) => ({ ...prev, [ym]: v }))
                   }
                 />
-              ))}
-            </div>
+              );
+            })}
+          </div>
+          {editableMonths.length === 0 && (
+            <p className="text-muted mt-3 text-xs">
+              {isActualDebut
+                ? "途中デビュー期のため、実績のみで一律額が適用されます。"
+                : "この期は実績単価だけで確定しています。"}
+            </p>
           )}
         </Card.Content>
       </Card>
@@ -257,17 +299,23 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
       {!simulation ? (
         <Card>
           <Card.Content className="text-muted py-6 text-center text-sm">
-            仮単価を入力すると、帯・還元率・給与・計算式がリアルタイムに表示されます。
+            未実績月の仮単価を入力すると、帯・還元率・給与・計算式がリアルタイムに表示されます。
+            {dashboard.prices.length === 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onPress={() => navigate({ to: "/prices" })}
+              >
+                月単価を入力する →
+              </Button>
+            )}
           </Card.Content>
         </Card>
       ) : (
         <div className="space-y-4">
           {diff && (
-            <DiffCard
-              diff={diff}
-              baseline={baselineResult}
-              sim={simulation.breakdown}
-            />
+            <DiffCard diff={diff} sim={simulation.breakdown} />
           )}
           <SalaryBreakdownCard title="試算結果" result={simulation} />
         </div>
@@ -276,24 +324,22 @@ export function Simulate({ dashboard }: { dashboard: DashboardResponse }) {
   );
 }
 
-/** 現在の予測と試算結果の差分（給与差額・帯・ランクの変化）を表示するカード。 */
+/** 実績だけで確定する場合の給与と試算結果の差分（給与差額・帯・ランクの変化）を表示するカード。 */
 function DiffCard({
   diff,
-  baseline,
   sim,
 }: {
   diff: import("@shared/simulate").SimulationDiff;
-  baseline: import("@shared/periods").SalaryResult | null;
   sim: import("@shared/calc").SalaryBreakdown;
 }) {
-  if (!diff.baseline || !baseline) {
+  if (!diff.baseline) {
     return (
       <Card>
         <Card.Header>
-          <Card.Title className="text-sm">現在の予測との差分</Card.Title>
+          <Card.Title className="text-sm">実績との差分</Card.Title>
         </Card.Header>
         <Card.Content className="text-muted text-sm">
-          比較対象となる現在の予測がまだありません。直近3ヶ月の単価を入力すると差分を表示できます。
+          この期は実績単価だけでは給与が確定していないため、比較対象がありません。仮単価のみで試算しています。
         </Card.Content>
       </Card>
     );
@@ -303,7 +349,10 @@ function DiffCard({
   return (
     <Card className="ring-accent/40 ring-2">
       <Card.Header>
-        <Card.Title className="text-sm">現在の予測との差分</Card.Title>
+        <Card.Title className="text-sm">実績との差分</Card.Title>
+        <Card.Description className="text-xs">
+          実績単価だけで確定する給与との比較
+        </Card.Description>
       </Card.Header>
       <Card.Content>
         {/* 給与差額 */}
@@ -333,7 +382,7 @@ function DiffCard({
                 </span>
               </p>
               <p className="text-muted mt-1 text-xs">
-                現在の予測 {formatYen(b.salary ?? 0)} 円 → 試算{" "}
+                実績のみ {formatYen(b.salary ?? 0)} 円 → 試算{" "}
                 {formatYen(sim.salary ?? 0)} 円
               </p>
             </div>

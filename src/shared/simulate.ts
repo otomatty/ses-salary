@@ -1,51 +1,13 @@
 /**
  * 単価シミュレーション（試算）のための純関数（PRD §5.2 Should）。
  *
- * 仮の単価から「もしこの単価なら次の給与はいくらか」を試算する。
- * DB には一切書き込まず、calcSalary() を流用してクライアント側で完結する。
+ * 「未来の給与期」を1つ選び、その直前四半期の月単価から給与を試算する。
+ * 実績月の単価は固定で反映し、未実績月のみ仮単価を入力する。
+ * 試算結果（SalaryResult）の組み立ては periods.computeSalaryForQuarterWithRank に
+ * 一本化し、ここでは「現在の見込みとの差分」のみを担う。DB には一切書き込まない。
  */
 
-import { calcSalary, type PricePoint, type SalaryBreakdown } from "./calc";
-import { addMonths, compareYM, type SalaryResult } from "./periods";
-import type { Rank } from "./rateTable";
-
-/** 適用期間ラベル（例: "2026-04 〜 2026-06"） */
-function periodLabel(appliedFrom: string): string {
-  return `${appliedFrom} 〜 ${addMonths(appliedFrom, 2)}`;
-}
-
-/**
- * 直近実績の2ヶ月を「古い順」で返す。実績が2件に満たない場合は揃っている分だけ返す。
- * （「直近2ヶ月＋仮単価1ヶ月」モードで利用する）
- */
-export function latestTwoMonths(prices: PricePoint[]): PricePoint[] {
-  return [...prices]
-    .sort((a, b) => compareYM(b.yearMonth, a.yearMonth))
-    .slice(0, 2)
-    .reverse();
-}
-
-/**
- * 対象3ヶ月の単価と評価ランクから試算結果（適用月付き）を組み立てる。
- * 適用月は対象3ヶ月の最新月の翌月。保存はしない。
- */
-export function buildSimulation(
-  months: PricePoint[],
-  rank: Rank,
-): SalaryResult {
-  const sorted = [...months].sort((a, b) =>
-    compareYM(a.yearMonth, b.yearMonth),
-  );
-  const latest = sorted[sorted.length - 1].yearMonth;
-  const appliedFrom = addMonths(latest, 1);
-  return {
-    appliedFrom,
-    periodLabel: periodLabel(appliedFrom),
-    breakdown: calcSalary(sorted, rank),
-    // 試算ではユーザーが明示的にランクを選ぶため、暫定ではない。
-    rankProvisional: false,
-  };
-}
+import type { SalaryBreakdown } from "./calc";
 
 export interface SimulationDiff {
   /** 比較対象（現在の予測）。無い場合は null */
